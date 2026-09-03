@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Тяга</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:ital,wght@0,500;0,700;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-
   :root{
     --bg:#000000;
     --surface:#0b0b0b;
@@ -462,31 +462,6 @@
   .sugg-vote.voted{background:#fff;color:#000;}
   .sugg-vote .sv-label{font-size:8px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;}
   .sugg-vote.voted .sv-label{color:#000;opacity:.6;}
-
-
-  /* ===== Telegram Mini App full-viewport overrides ===== */
-  html,body{height:100%;margin:0;background:var(--bg);padding:0;display:block;}
-  #app-root{
-    background:var(--bg);
-    height:calc(var(--tg-vh, 100vh));
-    min-height:calc(var(--tg-vh, 100vh));
-    display:flex;
-    flex-direction:column;
-    position:relative;
-    overflow:hidden;
-  }
-  .screen{
-    background:var(--bg);
-    border-radius:0;
-    height:100%;
-  }
-  .tg-bar{
-    padding:calc(env(safe-area-inset-top,0px) + 10px) 18px 6px;
-  }
-  .navbar{
-    padding-bottom:env(safe-area-inset-bottom,0px);
-  }
-
 </style>
 </head>
 <body>
@@ -505,6 +480,118 @@ const NAV_ICONS = {
 };
 
 const USER_NAME = 'Денис';
+
+// ==== Персистентность (MVP, Supabase) ====================================
+// ВНИМАНИЕ: на этом этапе доступ к базе идёт по anon key без проверки
+// подписи Telegram initData — осознанный компромисс для закрытого теста.
+// Перед публичным запуском заменить на проверку через Edge Function.
+const SUPABASE_URL = 'https://digeevjdjzrkogninmbt.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpZ2Vldmpkanpya29nbmlubWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTA5MjgsImV4cCI6MjEwMzkyNjkyOH0.0bGZPfKL9W5JvyHE9nYkDVZxRvoSlvf5HotuWJrHwqc';
+let sb = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch (e) { console.warn('Supabase init failed', e); }
+
+function getTelegramId(){
+  try {
+    const u = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
+    if (u && u.id) return u.id;
+  } catch (e) {}
+  // Вне Telegram (тест в обычном браузере) — держим один и тот же id на устройстве.
+  try {
+    let devId = localStorage.getItem('tyaga_dev_id');
+    if (!devId) { devId = String(900000000 + Math.floor(Math.random()*99999999)); localStorage.setItem('tyaga_dev_id', devId); }
+    return Number(devId);
+  } catch (e) { return 999000001; }
+}
+const TG_ID = getTelegramId();
+let dbUserIsNew = false;
+
+async function hydrateFromDB(){
+  if (!sb) return;
+  try {
+    const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || {};
+    let { data: userRow } = await sb.from('users').select('*').eq('telegram_id', TG_ID).maybeSingle();
+    if (!userRow) {
+      dbUserIsNew = true;
+      const { data: inserted } = await sb.from('users').insert({
+        telegram_id: TG_ID,
+        username: tgUser.username || null,
+        first_name: tgUser.first_name || null,
+      }).select('*').maybeSingle();
+      userRow = inserted;
+      // Новый реальный пользователь — обнуляем демо-цифры вместо примера "Денис Соколов".
+      state.profile.name = tgUser.first_name || state.profile.name;
+      state.profile.ls.total = 0;
+      state.profile.completedByType = { 'Привычка':0, 'Результат':0, 'Аскеза':0 };
+      state.profile.launchedByType = { 'Привычка':0, 'Результат':0, 'Аскеза':0 };
+      state.profile.streak = { current:0, longest:0 };
+      state.profile.followers = 0;
+      state.profile.support = { given:0 };
+      state.profile.crew = { inspiredCount:0, clones: [] };
+      state.profile.completed = [];
+      state.missions = [];
+    }
+    if (userRow) {
+      state.profile.ls.total = userRow.ls_total;
+      state.profile.streak.current = userRow.streak_current;
+      state.profile.streak.longest = userRow.streak_longest;
+      state.profile.followers = userRow.followers;
+      state.profile.support.given = userRow.support_given;
+      state.profile.crew.inspiredCount = userRow.crew_inspired_count;
+      if (userRow.completed_by_type && Object.keys(userRow.completed_by_type).length) state.profile.completedByType = userRow.completed_by_type;
+      if (userRow.launched_by_type && Object.keys(userRow.launched_by_type).length) state.profile.launchedByType = userRow.launched_by_type;
+    }
+    if (!dbUserIsNew) {
+      const { data: activeMissions } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','active').order('created_at', { ascending:false });
+      if (activeMissions) {
+        state.missions = activeMissions.map(m => ({ title:m.title, type:m.type, progress:m.progress, dbId:m.id }));
+      }
+    }
+    render();
+  } catch (e) { console.warn('hydrateFromDB failed — работаем в локальном режиме', e); }
+}
+
+async function dbUpsertUserStats(){
+  if (!sb) return;
+  try {
+    await sb.from('users').update({
+      ls_total: state.profile.ls.total,
+      streak_current: state.profile.streak.current,
+      streak_longest: state.profile.streak.longest,
+      followers: state.profile.followers,
+      support_given: state.profile.support.given,
+      crew_inspired_count: state.profile.crew.inspiredCount,
+      completed_by_type: state.profile.completedByType,
+      launched_by_type: state.profile.launchedByType,
+      updated_at: new Date().toISOString(),
+    }).eq('telegram_id', TG_ID);
+  } catch (e) { console.warn('dbUpsertUserStats failed', e); }
+}
+
+async function dbCreateMission(mission, mentorName){
+  if (!sb) return;
+  try {
+    const { data } = await sb.from('missions').insert({
+      user_id: TG_ID, type: mission.type, title: mission.title, mentor: mentorName || null, progress: mission.progress
+    }).select('id').maybeSingle();
+    if (data) mission.dbId = data.id;
+  } catch (e) { console.warn('dbCreateMission failed', e); }
+}
+
+async function dbLogProgress(mission){
+  if (!sb || !mission || !mission.dbId) return;
+  try {
+    await sb.from('progress_logs').upsert({
+      mission_id: mission.dbId, user_id: TG_ID, log_date: new Date().toISOString().slice(0,10), completed: true
+    }, { onConflict: 'mission_id,log_date' });
+    const patch = { progress: mission.progress };
+    if (mission.progress >= 100) { patch.status = 'completed'; patch.finished_at = new Date().toISOString(); }
+    await sb.from('missions').update(patch).eq('id', mission.dbId);
+  } catch (e) { console.warn('dbLogProgress failed', e); }
+}
 
 const state = {
   screen: 'splash',
@@ -2261,7 +2348,19 @@ function toggleRecord(){
 }
 
 function bumpMission(){
-  if(state.missions[0]) state.missions[0].progress = Math.min(100, state.missions[0].progress+4);
+  const m = state.missions[0];
+  if(!m) return;
+  const wasComplete = m.progress >= 100;
+  m.progress = Math.min(100, m.progress+4);
+  state.profile.ls.total += 20;
+  state.profile.ls.byType[m.type] = (state.profile.ls.byType[m.type]||0) + 20;
+  state.profile.streak.current += 1;
+  state.profile.streak.longest = Math.max(state.profile.streak.longest, state.profile.streak.current);
+  if(!wasComplete && m.progress >= 100){
+    state.profile.completedByType[m.type] = (state.profile.completedByType[m.type]||0) + 1;
+  }
+  dbLogProgress(m);
+  dbUpsertUserStats();
 }
 function openMissionCheck(i){
   const m = state.missions[i];
@@ -2273,7 +2372,11 @@ function openMissionCheck(i){
   }
 }
 function addMissionFromForm(){
-  state.missions.unshift({ title: effectiveHabitName() || 'Новая миссия', type:'Привычка', progress: 6 });
+  const mission = { title: effectiveHabitName() || 'Новая миссия', type:'Привычка', progress: 6 };
+  state.missions.unshift(mission);
+  state.profile.launchedByType['Привычка'] = (state.profile.launchedByType['Привычка']||0) + 1;
+  dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null);
+  dbUpsertUserStats();
 }
 function resetForm(){
   state.form = {
@@ -2353,7 +2456,11 @@ function totalAskezaPrice(){
   return sum;
 }
 function addAskezaMissionFromForm(){
-  state.missions.unshift({ title: state.askeza.goal || 'Новая аскеза', type:'Аскеза', progress: 4 });
+  const mission = { title: state.askeza.goal || 'Новая аскеза', type:'Аскеза', progress: 4 };
+  state.missions.unshift(mission);
+  state.profile.launchedByType['Аскеза'] = (state.profile.launchedByType['Аскеза']||0) + 1;
+  dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null);
+  dbUpsertUserStats();
 }
 function resetAskezaMissionProgress(){
   if(state.missions[0]) state.missions[0].progress = 4;
@@ -2423,7 +2530,11 @@ function toggleRecordResult(){
 }
 
 function addResultMissionFromForm(){
-  state.missions.unshift({ title: state.result.goal || 'Новая цель', type:'Результат', progress: 4 });
+  const mission = { title: state.result.goal || 'Новая цель', type:'Результат', progress: 4 };
+  state.missions.unshift(mission);
+  state.profile.launchedByType['Результат'] = (state.profile.launchedByType['Результат']||0) + 1;
+  dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null);
+  dbUpsertUserStats();
 }
 function resetResultForm(){
   state.result = {
@@ -2461,6 +2572,7 @@ function render(){
 }
 
 render();
+hydrateFromDB();
 
 
 
