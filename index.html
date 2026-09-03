@@ -509,6 +509,23 @@ function getTelegramId(){
 const TG_ID = getTelegramId();
 let dbUserIsNew = false;
 
+function isOnboarded(){
+  try { return localStorage.getItem('tyaga_onboarded_' + TG_ID) === '1'; } catch(e){ return false; }
+}
+function markOnboarded(){
+  try { localStorage.setItem('tyaga_onboarded_' + TG_ID, '1'); } catch(e){}
+}
+async function dbSaveOnboarding(name, gender){
+  if (!sb) return;
+  try {
+    await sb.from('users').update({
+      first_name: name,
+      gender: gender,
+      onboarded: true,
+    }).eq('telegram_id', TG_ID);
+  } catch (e) { console.warn('dbSaveOnboarding failed', e); }
+}
+
 async function hydrateFromDB(){
   if (!sb) return;
   try {
@@ -597,6 +614,7 @@ const state = {
   screen: 'splash',
   history: [],
   showNav: false,
+  onboard: { dataOk:false, agreeOk:false, notifyOk:false, name:'', gender:null },
   mentorInfoFor: null,
   ticketsTab: 'own',
   illumPlaying: null,
@@ -1216,7 +1234,57 @@ const SCREENS = {
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:22px;padding-top:60px;">
         <div style="font-family:var(--font-display);font-style:italic;font-size:54px;font-weight:700;letter-spacing:.01em;text-transform:uppercase;">ТЯГА</div>
         <p class="lead" style="max-width:220px;font-family:var(--font-display);font-style:italic;font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-dim);">Сделать это.</p>
-        <button class="btn primary block" style="max-width:200px;" onclick="go('tickets',{replace:true})">Начать</button>
+        <button class="btn primary block" style="max-width:200px;" onclick="go(isOnboarded() ? 'tickets' : 'onboardConsent',{replace:true})">Начать</button>
+      </div>
+    `;
+  },
+
+  onboardConsent(){
+    const o = state.onboard;
+    const canContinue = o.dataOk && o.agreeOk;
+    return `
+      <div style="display:flex;flex-direction:column;height:100%;justify-content:center;gap:22px;">
+        <div>
+          <h1 style="margin-bottom:6px;">Прежде чем начать</h1>
+          <p class="lead">Давай договоримся, что ты согласен с правилами приложения — без этого по закону я не смогу тебя пропустить дальше.</p>
+        </div>
+        <div class="toggle-row" onclick="toggleOnboardCheck('dataOk')" style="cursor:pointer;">
+          <div>Обработка персональных данных</div>
+          <div class="switch ${o.dataOk?'on':''}"><i></i></div>
+        </div>
+        <div class="toggle-row" onclick="toggleOnboardCheck('agreeOk')" style="cursor:pointer;">
+          <div>Соглашение и оферта</div>
+          <div class="switch ${o.agreeOk?'on':''}"><i></i></div>
+        </div>
+        <div class="toggle-row" onclick="toggleOnboardCheck('notifyOk')" style="cursor:pointer;">
+          <div>Сообщения о новых материалах<br><span class="hint">По желанию — на доступ не влияет</span></div>
+          <div class="switch ${o.notifyOk?'on':''}"><i></i></div>
+        </div>
+        <button class="btn primary block" ${canContinue?'':'disabled'} onclick="go('onboardName',{replace:true})">Продолжить</button>
+        ${canContinue?'':'<p class="hint" style="text-align:center;">Отметь обязательные пункты, чтобы продолжить</p>'}
+      </div>
+    `;
+  },
+
+  onboardName(){
+    const o = state.onboard;
+    const canContinue = o.name && o.name.trim().length>0 && o.gender;
+    return `
+      <div style="display:flex;flex-direction:column;height:100%;justify-content:center;gap:22px;">
+        <div>
+          <h1 style="margin-bottom:6px;">Как к тебе обращаться?</h1>
+          <p class="lead">Так наставники и приложение будут говорить с тобой правильно — по имени и без ошибок в роде.</p>
+        </div>
+        <input type="text" placeholder="Твоё имя" value="${o.name}" oninput="state.onboard.name=this.value; render()" />
+        <div>
+          <div class="hint" style="margin-bottom:8px;">Пол</div>
+          <div class="chips-row">
+            ${chip('Мужской', o.gender==='male', "setOnboardGender('male')")}
+            ${chip('Женский', o.gender==='female', "setOnboardGender('female')")}
+            ${chip('Не указывать', o.gender==='unspecified', "setOnboardGender('unspecified')")}
+          </div>
+        </div>
+        <button class="btn primary block" ${canContinue?'':'disabled'} onclick="finishOnboarding()">Готово</button>
       </div>
     `;
   },
@@ -1502,7 +1570,7 @@ const SCREENS = {
     return `
       <div class="eyebrow">Главная</div>
       <h1>Твои миссии</h1>
-      ${state.missions.length===0 ? `<div class="placeholder-box">Пока пусто. Нажми «+», чтобы запустить первую миссию.</div>` :
+      ${state.missions.length===0 ? `<div class="placeholder-box" style="cursor:pointer;" onclick="go('tickets')">Пока пусто. Нажми «+», чтобы запустить первую миссию.</div>` :
         state.missions.map((m,i)=>`
           <div class="mission-card" onclick="openMissionCheck(${i})">
             <div class="mtop"><span class="mtitle">${m.title}</span><span class="mtype">${m.type}</span></div>
@@ -2314,6 +2382,16 @@ function pickRandomMentor(target){
   render();
 }
 function setStake(v){ state.form.boosts.stake=v; render(); }
+function toggleOnboardCheck(field){ state.onboard[field] = !state.onboard[field]; render(); }
+function setOnboardGender(g){ state.onboard.gender = g; render(); }
+function finishOnboarding(){
+  const o = state.onboard;
+  if(!(o.name && o.name.trim().length>0 && o.gender)) return;
+  markOnboarded();
+  state.profile.name = o.name.trim();
+  dbSaveOnboarding(o.name.trim(), o.gender);
+  go('tickets',{replace:true});
+}
 function togglePublic(){ state.form.boosts.public=!state.form.boosts.public; render(); }
 function toggleProfile(){ state.form.profileExpanded=!state.form.profileExpanded; render(); }
 function syncPrimary(){
