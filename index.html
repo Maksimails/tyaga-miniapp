@@ -31,10 +31,19 @@
     background:#050505;
     color:var(--text);
     font-family:var(--font-body);
+    overflow:hidden;
+    height:var(--tg-vh, 100vh);
+    width:100%;
+  }
+  #app-root{
     display:flex;
-    align-items:flex-start;
-    justify-content:center;
-    padding:36px 16px 60px;
+    flex-direction:column;
+    height:var(--tg-vh, 100vh);
+    width:100%;
+    max-width:520px;
+    margin:0 auto;
+    background:var(--bg);
+    overflow:hidden;
   }
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
@@ -319,6 +328,7 @@
     display:flex;
     border-top:1px solid var(--line);
     background:var(--bg);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
   }
   .navbtn{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -471,7 +481,6 @@
   <div class="navbar" id="navbar"></div>
 </div>
 <script>
-
 const NAV_ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>',
   profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>',
@@ -556,7 +565,7 @@ function tf(field){
 }
 // Small label lookups for internal RU keys that must stay RU in state/logic
 // (mission types, weekdays, months) but need an English display form.
-const TYPE_LABEL_EN = { 'Привычка':'Habit', 'Результат':'Result', 'Аскеза':'Vow' };
+const TYPE_LABEL_EN = { 'Привычка':'Habit', 'Результат':'Result', 'Аскеза':'AAA' };
 function typeLabel(type){ return state.lang==='en' ? (TYPE_LABEL_EN[type]||type) : type; }
 const WEEKDAY_LABEL_EN = { 'Пн':'Mon','Вт':'Tue','Ср':'Wed','Чт':'Thu','Пт':'Fri','Сб':'Sat','Вс':'Sun' };
 function weekdayLabel(d){ return state.lang==='en' ? (WEEKDAY_LABEL_EN[d]||d) : d; }
@@ -580,7 +589,8 @@ function missionWord(n, lang){
 // pickers, psychotypes, yes/no answers) that are stored & compared as-is but
 // need an English display form. Values not listed pass through unchanged.
 const LABEL_EN = {
-  'Спорт':'Sport','Работа':'Work','Учёба':'Study','Отношения':'Relationships','Творчество':'Creativity','Финансы':'Finances','Другое':'Other',
+  'Спорт':'Sport','Работа':'Work','Учёба':'Study','Отношения':'Relationships','Творчество':'Creativity','Финансы':'Finances',
+  'Личное':'Personal','Здоровье':'Health','Благотворительность':'Charity','Другое':'Other',
   'Каждый день':'Every day','Несколько раз в неделю':'A few times a week','По событию':'Trigger-based',
   'Утро':'Morning','День':'Afternoon','Вечер':'Evening','Ночь':'Night',
   'Аналитик':'Analyst','Боец':'Fighter','Творец':'Creator','Опекун':'Caretaker','Не знаю':"Don't know",
@@ -743,20 +753,40 @@ async function dbToggleSupport(postId, nowSupported){
   } catch (e) { console.warn('dbToggleSupport failed', e); }
 }
 
-async function uploadIlluminatorVideo(blob, caption, missionType){
+// Generalized proof upload: every post is video, photo, or text, and every
+// post carries which mission it belongs to and whether it's the mission's
+// one main promise or a dated progress report on it.
+async function uploadIlluminatorProof(opts){
+  const { kind, blob, caption, missionType, missionTitle, missionId, isPromise, reportDay, reportTotalDays } = opts;
   if (!sb) return null;
   try {
-    const fileName = `${TG_ID}_${Date.now()}.webm`;
-    const { error: upErr } = await sb.storage.from('illuminator-videos').upload(fileName, blob, { contentType: blob.type || 'video/webm' });
-    if (upErr) throw upErr;
-    const { data: pub } = sb.storage.from('illuminator-videos').getPublicUrl(fileName);
-    const videoUrl = pub && pub.publicUrl;
-    const { data: inserted } = await sb.from('illuminator_posts').insert({
+    const base = {
       user_id: TG_ID, author_name: state.profile.name, mission_type: missionType || null,
-      caption: caption || '', video_url: videoUrl
+      mission_title: missionTitle || null, mission_id: missionId || null, is_promise: !!isPromise,
+      report_day: reportDay || null, report_total_days: reportTotalDays || null,
+      caption: caption || '', kind
+    };
+    if (kind === 'text'){
+      const { data: inserted } = await sb.from('illuminator_posts').insert({ ...base, text_body: caption || '' }).select('*').maybeSingle();
+      return inserted;
+    }
+    const isPhoto = kind === 'photo';
+    const bucket = isPhoto ? 'illuminator-photos' : 'illuminator-videos';
+    const ext = isPhoto ? 'jpg' : 'webm';
+    const fileName = `${TG_ID}_${Date.now()}.${ext}`;
+    const { error: upErr } = await sb.storage.from(bucket).upload(fileName, blob, { contentType: blob.type || (isPhoto?'image/jpeg':'video/webm') });
+    if (upErr) throw upErr;
+    const { data: pub } = sb.storage.from(bucket).getPublicUrl(fileName);
+    const url = pub && pub.publicUrl;
+    const { data: inserted } = await sb.from('illuminator_posts').insert({
+      ...base, [isPhoto ? 'photo_url' : 'video_url']: url
     }).select('*').maybeSingle();
     return inserted;
-  } catch (e) { console.warn('uploadIlluminatorVideo failed', e); return null; }
+  } catch (e) { console.warn('uploadIlluminatorProof failed', e); return null; }
+}
+// Back-compat alias used by the video recording flow below.
+async function uploadIlluminatorVideo(blob, caption, missionType){
+  return uploadIlluminatorProof({ kind:'video', blob, caption, missionType });
 }
 
 const state = {
@@ -773,6 +803,10 @@ const state = {
   illumPosts: [],
   illumLoaded: false,
   illumRecording: { status:'idle', caption:'' },
+  checkinMissionIndex: null,
+  missionThreadFor: null,
+  missionThreadPosts: [],
+  missionThreadLoading: false,
   form: {
     habitName: null,
     habitCustom: '',
@@ -894,8 +928,12 @@ const TARIFFS = [
 ];
 const ASKEZA_DURATIONS = [21,40,66,90,180,365];
 const READY_TICKETS = [
-  { id:'pushups21', days:21, price:299, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Стартовая площадка с системой и поддержкой',en:'A launchpad with a system and support'}, goalDefault:{ru:'Отжимания до отказа',en:'Push-ups to failure'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
-  { id:'run90', days:90, price:1199, big:{ru:'90 дней',en:'90 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Вывод на орбиту',en:'Insertion into orbit'}, goalDefault:{ru:'Бегать до 8 утра',en:'Run before 8am'}, reportDefault:{ru:'Видео + Strava',en:'Video + Strava'} },
+  { id:'stretch21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'15 минут зарядки: растяжка или лёгкая тренировка каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, goalDefault:{ru:'15 минут зарядки: растяжки или легкой тренировки каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
+  { id:'dayrecap21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Подводить итоги дня каждый вечер: выводы и результаты дня',en:'Recap your day every evening: takeaways and results'}, goalDefault:{ru:'Подводить итоги дня каждый вечер: выводы / результаты дня',en:'Recap your day every evening: takeaways / results of the day'}, reportDefault:{ru:'Текстовый отчёт',en:'Text report'} },
+  { id:'read20', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, goalDefault:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, reportDefault:{ru:'Фото прочитанных страниц',en:'Photo of the pages read'} },
+  { id:'run5k21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, goalDefault:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, reportDefault:{ru:'Видео + Strava',en:'Video + Strava'} },
+  { id:'checkup21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, goalDefault:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, reportDefault:{ru:'Фото/документ',en:'Photo / document'} },
+  { id:'nophone21', type:'Аскеза', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Аскеза',en:'AAA'}, tagline:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, goalDefault:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
 ];
 const PARTNER_MISSIONS = [
   { id:'p_reebok30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, brand:'Reebok', typeLine:{ru:'Партнёрская миссия · Reebok',en:'Partner mission · Reebok'}, tagline:{ru:'Совместный челлендж — сила через движение',en:'A joint challenge — strength through movement'}, goalDefault:{ru:'5 тренировок в неделю',en:'5 workouts a week'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'}, reward:{ru:'Скидка 20% на экипировку Reebok',en:'20% off Reebok gear'} },
@@ -905,7 +943,7 @@ const PARTNER_MISSIONS = [
 const GATEWAY_MISSIONS = [
   { id:'u_marina21', days:21, price:0, big:{ru:'21 день',en:'21 days'}, author:'Марина', participants:128, typeLine:{ru:'От пользователя · Привычка',en:'From a user · Habit'}, tagline:{ru:'«Бегать по утрам с командой»',en:'"Morning runs with the crew"'}, goalDefault:{ru:'Бегать по утрам 20 минут',en:'Run for 20 minutes every morning'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
   { id:'u_igor60', days:60, price:0, big:{ru:'60 дней',en:'60 days'}, author:'Игорь', participants:74, typeLine:{ru:'От пользователя · Результат',en:'From a user · Result'}, tagline:{ru:'«Запустить курс без прокрастинации»',en:'"Launch a course without procrastinating"'}, goalDefault:{ru:'1 час работы над курсом ежедневно',en:'1 hour of course work every day'}, reportDefault:{ru:'Скриншот прогресса',en:'Progress screenshot'} },
-  { id:'u_sveta30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, author:'Света', participants:203, typeLine:{ru:'От пользователя · Аскеза',en:'From a user · Vow'}, tagline:{ru:'«Месяц без соцсетей после 22:00»',en:'"A month off social media after 10pm"'}, goalDefault:{ru:'Не заходить в соцсети после 22:00',en:'No social media after 10pm'}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
+  { id:'u_sveta30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, author:'Света', participants:203, typeLine:{ru:'От пользователя · Аскеза',en:'From a user · AAA'}, tagline:{ru:'«Месяц без соцсетей после 22:00»',en:'"A month off social media after 10pm"'}, goalDefault:{ru:'Не заходить в соцсети после 22:00',en:'No social media after 10pm'}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
 ];
 const MENTORS_FREE = ['Космонавт', 'Баба Зина', 'Витя Убуд', 'Алина ДиЭнЭй'];
 const MENTORS_PAID = ['Ледокол', 'Мама Женя', 'Профессор', 'Товарищ Ли', 'DJ Midnight', 'Лиза Джаз'];
@@ -1118,6 +1156,26 @@ function screenShell(inner, {back:showBack=true, step=null} = {}){
   `;
 }
 
+// Shared real-camera block for the three "say it to the camera" wizard
+// steps (Habit/Result/Ascesis) — same recorder as the Illuminator, just
+// scoped to state.wizCam so it doesn't collide with an Illuminator recording.
+function wizardCamBlock(){
+  const st = (state.wizCam && state.wizCam.status) || 'idle';
+  return `
+    <video id="wizCamPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;max-height:340px;object-fit:cover;"></video>
+    <div id="wizRecTimer" class="hint" style="text-align:center;margin:8px 0;">${st==='recording'?'00:00':''}</div>
+    ${st==='idle' ? `<button class="btn primary block" onclick="startWizardRecording()">${tr('● Начать запись','● Start recording')}</button>` : ''}
+    ${st==='recording' ? `<button class="btn primary block" onclick="stopWizardRecording()">${tr('■ Остановить','■ Stop')}</button>` : ''}
+    ${st==='reviewing' ? `
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn ghost block" onclick="retakeWizardRecording()">${tr('Заново','Retake')}</button>
+        <button class="btn primary block" onclick="confirmWizardVideo()">${tr('Использовать','Use this')}</button>
+      </div>
+    ` : ''}
+    ${st==='done' ? `<div style="font-family:var(--font-mono);font-size:13px;text-align:center;padding:8px 0;">${tr('✓ Записано','✓ Recorded')}</div>` : ''}
+  `;
+}
+
 function ticketCard(t){
   return `<div class="ticket2" onclick="openTicket('${t.id}')">
     <div class="t2-top"><div class="t2-big">${tf(t.big)}</div><div class="t2-price">${t.price}₽</div></div>
@@ -1154,26 +1212,79 @@ function gatewayCard(t){
   </div>`;
 }
 
+// Every post is logically tied to a mission: it's either that mission's one
+// main "promise" video (isPromise:true) or a dated progress report on it
+// (isPromise:false, with day/totalDays). missionTitle lets a viewer see
+// exactly what's being reported on, e.g. "day 25 of Walking in the Park".
 const ILLUMINATOR_POSTS = [
-  { id:'v1', author:'Марина', letter:'М', tag:{ru:'Привычка · день 12',en:'Habit · day 12'}, body:{ru:'«Каждое утро — 20 минут бега перед работой, 90 дней.» Сегодняшний чек-ин пройден.',en:'"Every morning — 20 minutes of running before work, 90 days." Today\'s check-in is done.'}, kind:{ru:'Видео-чек-ин',en:'Video check-in'}, duration:'0:24', grad:'linear-gradient(135deg,#232323,#050505)' },
-  { id:'v2', author:'Игорь', letter:'И', tag:{ru:'Результат · этап 2/4',en:'Result · milestone 2/4'}, body:{ru:'«Запустить курс по фотографии до конца года.» Веха пройдена, летим дальше.',en:'"Launch a photography course by the end of the year." Milestone reached, moving on.'}, kind:{ru:'Видео-веха',en:'Video milestone'}, duration:'0:41', grad:'linear-gradient(135deg,#1c1c1c,#3a2a12)' },
-  { id:'v3', author:'Света', letter:'С', tag:{ru:'Аскеза · день 30',en:'Vow · day 30'}, body:{ru:'«Месяц без соцсетей после 22:00.» Финальный отчёт — обещание выполнено полностью.',en:'"A month off social media after 10pm." Final report — the promise was fully kept.'}, kind:{ru:'Видео-финиш',en:'Video finish'}, duration:'0:57', grad:'linear-gradient(135deg,#141414,#0f2a2a)' },
+  { id:'v0', author:'Марина', letter:'М', type:'Привычка', missionTitle:{ru:'Бег по утрам перед работой',en:'Morning runs before work'}, isPromise:true, tag:{ru:'Привычка · обещание',en:'Habit · promise'}, body:{ru:'«Каждое утро — 20 минут бега перед работой, 90 дней.» Это стартовое видео-обещание.',en:'"Every morning — 20 minutes of running before work, 90 days." This is the starting video promise.'}, kind:{ru:'Главное видео-обещание',en:'Main promise video'}, duration:'0:38', grad:'linear-gradient(135deg,#232323,#050505)' },
+  { id:'v1', author:'Марина', letter:'М', type:'Привычка', missionTitle:{ru:'Бег по утрам перед работой',en:'Morning runs before work'}, isPromise:false, day:12, totalDays:90, tag:{ru:'Привычка · день 12',en:'Habit · day 12'}, body:{ru:'«Каждое утро — 20 минут бега перед работой, 90 дней.» Сегодняшний чек-ин пройден.',en:'"Every morning — 20 minutes of running before work, 90 days." Today\'s check-in is done.'}, kind:{ru:'Видео-отчёт',en:'Video report'}, duration:'0:24', grad:'linear-gradient(135deg,#232323,#050505)' },
+  { id:'v2', author:'Игорь', letter:'И', type:'Результат', missionTitle:{ru:'Запустить курс по фотографии',en:'Launch a photography course'}, isPromise:false, day:null, totalDays:null, milestone:'2/4', tag:{ru:'Результат · этап 2/4',en:'Result · milestone 2/4'}, body:{ru:'«Запустить курс по фотографии до конца года.» Веха пройдена, летим дальше.',en:'"Launch a photography course by the end of the year." Milestone reached, moving on.'}, kind:{ru:'Видео-отчёт',en:'Video report'}, duration:'0:41', grad:'linear-gradient(135deg,#1c1c1c,#3a2a12)' },
+  { id:'v3', author:'Света', letter:'С', type:'Аскеза', missionTitle:{ru:'Месяц без соцсетей после 22:00',en:'A month off social media after 10pm'}, isPromise:false, day:30, totalDays:30, tag:{ru:'Аскеза · день 30',en:'AAA · day 30'}, body:{ru:'«Месяц без соцсетей после 22:00.» Финальный отчёт — обещание выполнено полностью.',en:'"A month off social media after 10pm." Final report — the promise was fully kept.'}, kind:{ru:'Видео-финиш',en:'Video finish'}, duration:'0:57', grad:'linear-gradient(135deg,#141414,#0f2a2a)' },
 ];
+
+// Which proof formats are acceptable for a checkpoint report, by mission type.
+// Habits are frequent/low-friction, so text/photo are allowed alongside video;
+// Results usually need visible/verifiable proof; an Ascesis is an absence of
+// action, so an honest text check-in is enough — video is optional, not required.
+const PROOF_RULES = {
+  'Привычка': { video:true, photo:true, text:true, note:{ru:'Видео, фото или текстовый отчёт — на твой выбор.',en:'Video, photo, or a text report — your choice.'} },
+  'Результат': { video:true, photo:true, text:false, note:{ru:'Нужно фото или видео — итог должен быть виден.',en:'A photo or video is required — the result needs to be visible.'} },
+  'Аскеза': { video:true, photo:false, text:true, note:{ru:'Достаточно честной текстовой отметки, видео — по желанию.',en:'An honest text check-in is enough; video is optional.'} },
+};
+function proofRulesFor(type){ return PROOF_RULES[type] || PROOF_RULES['Привычка']; }
+
+// Lightweight "relatable to this viewer" ranking: posts whose mission type
+// matches a type the viewer has launched (active or historical) bubble up,
+// then ties break on support count, so the feed leans toward what a given
+// pilot is actually likely to find relevant rather than pure recency.
+function recommendedIlluminatorPosts(){
+  const myTypes = {};
+  (state.missions||[]).forEach(m => { if(m.type) myTypes[m.type] = (myTypes[m.type]||0) + 3; });
+  Object.entries(state.profile.launchedByType||{}).forEach(([t,n]) => { myTypes[t] = (myTypes[t]||0) + Math.min(n,5); });
+  const all = [...state.illumPosts, ...ILLUMINATOR_POSTS];
+  return all.map((p,i) => ({ p, i, score: (myTypes[p.mission_type || p.type] || 0) + (p.support_count||0)*0.1 }))
+    .sort((a,b) => b.score - a.score || a.i - b.i)
+    .map(x => x.p);
+}
 
 function togglePostVideo(id){
   state.illumPlaying = (state.illumPlaying===id ? null : id);
   render();
 }
 
+// A small always-visible badge stating exactly what a post is: the mission's
+// one main promise video, or a dated/staged progress report on it — so
+// tapping into any card in the feed never leaves that ambiguous.
+function postContextBadge(p){
+  const title = p.missionTitle ? tf(p.missionTitle) : (p.mission_title || '');
+  const kindWord = { video: tr('видео-обещание','promise video'), photo: tr('фото-обещание','promise photo'), text: tr('текстовое обещание','text promise') }[p.kind] || tr('видео-обещание','promise video');
+  if(p.isPromise || p.is_promise){
+    return `<div class="post-context promise">🎯 ${tr('Главное','Main')} ${kindWord}${title?' · '+title:''}</div>`;
+  }
+  const day = p.day ?? p.report_day, totalDays = p.totalDays ?? p.report_total_days, milestone = p.milestone;
+  let where = '';
+  if(day && totalDays) where = tr(`день ${day} из ${totalDays}`, `day ${day} of ${totalDays}`);
+  else if(milestone) where = tr(`этап ${milestone}`, `milestone ${milestone}`);
+  else where = tr('отчёт о прогрессе','progress report');
+  return `<div class="post-context report">📋 ${tr('Отчёт','Report')} · ${where}${title?' · '+title:''}</div>`;
+}
+
 function postCard(p){
-  if(p.video_url){
+  if(p.video_url || p.photo_url || (p.kind==='text' && p.text_body!=null)){
     const supported = !!state.illumSupported[p.id];
     const initial = ((p.author_name||'?').trim().charAt(0) || '?').toUpperCase();
-    const tag = p.mission_type || tr('Видео-пост','Video post');
+    const tag = p.mission_type || tr('Пост','Post');
+    const media = p.video_url
+      ? `<video src="${p.video_url}" controls playsinline style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;"></video>`
+      : p.photo_url
+        ? `<img src="${p.photo_url}" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;display:block;">`
+        : '';
     return `<div class="post">
       <div class="post-head"><div class="avatar" style="width:34px;height:34px;font-size:14px;">${initial}</div><div><div class="pname">${p.author_name||tr('Пилот','Pilot')}</div><div class="ptag">${tag}</div></div></div>
-      <video src="${p.video_url}" controls playsinline style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;"></video>
-      ${p.caption ? `<div class="post-body">${p.caption}</div>` : ''}
+      ${postContextBadge(p)}
+      ${media}
+      ${(p.caption || p.text_body) ? `<div class="post-body">${p.text_body || p.caption}</div>` : ''}
       <div class="post-actions">
         <button class="btn small ${supported?'ghost':''}" onclick="togglePostSupport('${p.id}')">${supported ? tr('✓ Поддержано','✓ Supported') : tr('Поддержать','Support')}${p.support_count?` · ${p.support_count}`:''}</button>
       </div>
@@ -1182,6 +1293,7 @@ function postCard(p){
   const playing = state.illumPlaying===p.id;
   return `<div class="post">
     <div class="post-head"><div class="avatar" style="width:34px;height:34px;font-size:14px;">${p.letter}</div><div><div class="pname">${p.author}</div><div class="ptag">${tf(p.tag)}</div></div></div>
+    ${postContextBadge(p)}
     <div class="post-video ${playing?'playing':''}" style="background:${p.grad}" onclick="togglePostVideo('${p.id}')">
       <div class="pv-play">${playing ? '❚❚' : '▶'}</div>
       <div class="pv-kind">${tf(p.kind)}</div>
@@ -1391,13 +1503,13 @@ const BADGES = [
     check:p=>({unlocked: (p.completedByType['Привычка']||0)>=2, progress:Math.min(p.completedByType['Привычка']||0,2)+'/2'}) },
   { id:'result_athlete', icon:'🏋️', name:{ru:'Атлет Результата',en:'Results Athlete'}, desc:{ru:'Довёл до конца хотя бы одну цель типа «Результат» — не процесс ради процесса, а конкретный итог.',en:"Saw at least one Result-type goal through to the end — not process for its own sake, but a concrete outcome."},
     check:p=>({unlocked: (p.completedByType['Результат']||0)>=1}) },
-  { id:'iron_will', icon:'🛡️', name:{ru:'Железная воля',en:'Iron Will'}, desc:{ru:'Выдержал полную Аскезу — отказался от привычки и не сорвался.',en:"Held a full Vow — gave up a habit and didn't relapse."},
+  { id:'iron_will', icon:'🛡️', name:{ru:'Железная воля',en:'Iron Will'}, desc:{ru:'Выдержал полную Аскезу — отказался от привычки и не сорвался.',en:"Held a full AAA — willingly gave up a habit and didn't relapse."},
     check:p=>({unlocked: (p.completedByType['Аскеза']||0)>=1}) },
   { id:'fleet5', icon:'🔥', name:{ru:'Флот',en:'Fleet'}, desc:{ru:'5 когда-либо запущенных миссий, независимо от исхода — награда за саму инициативу.',en:"5 missions ever launched, regardless of outcome — a reward for the initiative itself."},
     check:p=>({unlocked: driveTotal(p)>=5, progress:Math.min(driveTotal(p),5)+'/5'}) },
   { id:'first_cosmic', icon:'⚡', name:{ru:'Первая космическая',en:'Escape Velocity'}, desc:{ru:'Дошёл до статуса «Первая космическая скорость» хотя бы в одной миссии — личный рекорд темпа и эффективности.',en:"Reached “Escape Velocity” status in at least one mission — a personal record for pace and efficiency."},
     check:p=>({unlocked: p.completed.some(m=>m.firstCosmic)}) },
-  { id:'competitive_spirit', icon:'🏆', name:{ru:'Дух соревнования',en:'Competitive Spirit'}, desc:{ru:'Поддержал 5+ чужих миссий в Иллюминаторе — соревнование, которое поднимает всех, а не только тебя.',en:"Supported 5+ other people's missions in the Porthole — competition that lifts everyone, not just you."},
+  { id:'competitive_spirit', icon:'🏆', name:{ru:'Дух соревнования',en:'Competitive Spirit'}, desc:{ru:'Поддержал 5+ чужих миссий в Иллюминаторе — соревнование, которое поднимает всех, а не только тебя.',en:"Supported 5+ other people's missions in the Viewport — competition that lifts everyone, not just you."},
     check:p=>({unlocked: p.support.given>=5, progress:Math.min(p.support.given,5)+'/5'}) },
   { id:'inspirer', icon:'🤝', name:{ru:'Вдохновитель',en:'Inspirer'}, desc:{ru:'Твою цель скопировали и запустили 5+ человек в «Экипаже».',en:"5+ people copied and launched your goal in the Crew."},
     check:p=>({unlocked: p.crew.inspiredCount>=5, progress:Math.min(p.crew.inspiredCount,5)+'/5'}) },
@@ -1439,7 +1551,7 @@ const SCREENS = {
     return `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:22px;padding-top:60px;">
         <div style="font-family:var(--font-display);font-style:italic;font-size:54px;font-weight:700;letter-spacing:.01em;text-transform:uppercase;">ТЯГА</div>
-        <p class="lead" style="max-width:220px;font-family:var(--font-display);font-style:italic;font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-dim);">${tr('Сделать это.','Do this.')}</p>
+        <p class="lead" style="max-width:220px;font-family:var(--font-display);font-style:italic;font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-dim);">${tr('Сделать это.','To do this.')}</p>
         <button class="btn primary block" style="max-width:200px;" onclick="go(isOnboarded() ? 'tickets' : 'onboardLang',{replace:true})">${tr('Начать','Start')}</button>
       </div>
     `;
@@ -1513,20 +1625,26 @@ const SCREENS = {
   tickets(){
     state.showNav = true;
     const tab = state.ticketsTab || 'own';
+    const byType = t => READY_TICKETS.filter(x=>x.type===t);
     return `
       <div class="eyebrow">${tr('Шаг 1','Step 1')}</div>
       <h1>${tr('Добро пожаловать в ЦУЦ','Welcome to Mission Control')}</h1>
       <p class="lead" style="margin-top:-6px;">${tr('(Центр управления целями)','(Goal Mission Control)')}</p>
+      <button class="btn primary block" style="margin:14px 0 18px;font-size:16px;padding:16px;" onclick="go('typeSelect')">${tr('Выбрать свою цель','Choose your own goal')}</button>
       <div class="cuc-tabs">
-        <div class="cuc-tab ${tab==='own'?'active':''}" onclick="setTicketsTab('own')">${tr('Готовые миссии','Ready-made missions')}<br>${tr('+ выбрать свою','+ pick your own')}</div>
+        <div class="cuc-tab ${tab==='own'?'active':''}" onclick="setTicketsTab('own')">${tr('Готовые миссии','Ready-made missions')}</div>
         <div class="cuc-tab ${tab==='radar'?'active':''}" onclick="setTicketsTab('radar')">${tr('Зона','Zone')}<br>${tr('Радара','Radar')}</div>
         <div class="cuc-tab ${tab==='gateway'?'active':''}" onclick="setTicketsTab('gateway')">${tr('Открытый','Open')}<br>${tr('Шлюз','Airlock')}</div>
       </div>
       ${tab==='own' ? `
-        <h2 style="margin-top:4px;">${tr('Готовые миссии','Ready-made missions')}</h2>
+        <h2 style="margin-top:4px;">${tr('Выбери готовую миссию','Pick a ready-made mission')}</h2>
         <p class="hint" style="margin:-2px 0 12px;">${tr('Самый быстрый путь — выбери готовую программу и запусти её сразу.','The fastest way — pick a ready-made program and launch it right away.')}</p>
-        ${READY_TICKETS.map(ticketCard).join('')}
-        <button class="btn ghost block" style="margin-top:8px;" onclick="go('typeSelect')">${tr('Выбрать свою цель','Choose your own goal')}</button>
+        <h3 style="margin:14px 0 6px;">${tr('Привычка','Habit')}</h3>
+        ${byType('Привычка').map(ticketCard).join('')}
+        <h3 style="margin:18px 0 6px;">${tr('Результат','Result')}</h3>
+        ${byType('Результат').map(ticketCard).join('')}
+        <h3 style="margin:18px 0 6px;">${tr('Аскеза','AAA')}</h3>
+        ${byType('Аскеза').map(ticketCard).join('')}
       ` : tab==='radar' ? `
         <h2 style="margin-top:4px;">${tr('Зона Радара','Radar Zone')}</h2>
         <p class="hint" style="margin:-2px 0 12px;">${tr('Миссии от партнёров и брендов — выполняй и получай реальные призы и скидки.','Missions from partners and brands — complete them for real prizes and discounts.')}</p>
@@ -1546,15 +1664,15 @@ const SCREENS = {
       <div class="stack" style="margin-top:14px;">
         <div class="card" style="cursor:pointer;" onclick="go('habitBasics')">
           <div style="font-weight:700;font-size:15px;">${tr('Привычка','Habit')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Сформировать привычку','Build a habit')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily repetitive actions (build a habit)')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('rGoal')">
           <div style="font-weight:700;font-size:15px;">${tr('Результат','Result')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Достичь конкретного результата','Achieve a specific result')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach some point in the future (achieve a specific result)')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('aGoal')">
-          <div style="font-weight:700;font-size:15px;">${tr('Аскеза','Vow')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Отказаться от привычки','Give up a habit')}</div>
+          <div style="font-weight:700;font-size:15px;">${tr('Аскеза','AAA')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism (willingly give up a habit)')}</div>
         </div>
       </div>
     `);
@@ -1594,7 +1712,7 @@ const SCREENS = {
 
       <h2>${tr('Тематика','Category')}</h2>
       <p class="hint" style="margin:-2px 0 10px;">${tr('Отношение к сфере жизни','Attitude toward this area of life')}</p>
-      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Другое'].map(t=>chip(label(t), state.form.theme===t, `setTheme('${t}')`)).join('')}</div>
+      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.form.theme===t, `setTheme('${t}')`)).join('')}</div>
       ${state.form.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.form.themeOther}" oninput="state.form.themeOther=this.value; syncBasics()" />` : ''}
 
       <h2>${tr('Длительность','Duration')}</h2>
@@ -1665,7 +1783,7 @@ const SCREENS = {
       <h2>${tr('А для чего тебе конкретно эта цель?','And specifically, why does this goal matter to you?')}</h2>
       <p class="hint" style="margin:-2px 0 10px;">${tr('Что изменится, когда дойдёшь до цели? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you reach your goal? Will you respect or love yourself more? Why?')}</p>
       <textarea rows="3" placeholder="${tr('Опиши своими словами','Describe it in your own words')}" oninput="state.form.meaning=this.value; syncPrimary()">${state.form.meaning}</textarea>
-      <button class="btn primary block" id="btnMeaning" style="margin-top:22px;" ${state.form.meaning.trim()?'':'disabled'} onclick="go('video')">${tr('Далее','Next')}</button>
+      <button class="btn primary block" id="btnMeaning" style="margin-top:22px;" ${state.form.meaning.trim()?'':'disabled'} onclick="goToWizardVideo('video','form')">${tr('Далее','Next')}</button>
     `, {step:'5П'});
   },
 
@@ -1675,15 +1793,8 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 5 · Привычка','Step 5 · Habit')}</div>
       <h1>${tr('Скажи это на камеру','Say it to the camera')}</h1>
-      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я формирую привычку «',', I\'m building the habit “')}<b>${habit}</b>» — <b>${durLabel}</b>. ${tr('Потому что','Because')} ${state.form.meaning?state.form.meaning:'…'}». ${tr('Дальше — от себя: что-то о цели или о тебе, и почему именно тебе это важно.','Then, in your own words — something about the goal or about you, and why it matters to you specifically.')}</div>
-      <div class="cam ${state.videoRecording?'recording':''}" id="cam">
-        <div class="dot" style="display:${state.videoRecording?'block':'none'}"></div>
-        ${state.form.videoDone
-          ? `<div style="font-family:var(--font-mono);font-size:13px;">${tr('Записано','Recorded')}</div>`
-          : `<button class="rec-btn" onclick="toggleRecord()"><i></i></button>`
-        }
-        <div class="timer" id="timer">${state.videoRecording? '00:0'+state.recSeconds : ''}</div>
-      </div>
+      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${(state.profile.name && state.profile.name.trim()) || tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я формирую привычку «',', I\'m building the habit “')}<b>${habit}</b>» — <b>${durLabel}</b>. ${tr('Потому что','Because')} ${state.form.meaning?state.form.meaning:'…'}». ${tr('Дальше — от себя: что-то о цели или о тебе, и почему именно тебе это важно.','Then, in your own words — something about the goal or about you, and why it matters to you specifically.')}</div>
+      ${wizardCamBlock()}
       <button class="btn primary block" style="margin-top:18px;" ${state.form.videoDone?'':'disabled'} onclick="go('savingScreen')">${tr('Далее','Next')}</button>
     `, {step:'6П'});
   },
@@ -1782,7 +1893,6 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      ${state.form.boosts.public ? `<button class="btn block" style="margin-top:10px;" onclick="resetForm(); state.illumRecording={status:'idle',caption:''}; go('illumRecord'); setTimeout(enterIllumRecordScreen,0);">${tr('Записать видео-обещание','Record a video promise')}</button>` : ''}
       <button class="btn primary block" style="margin-top:10px;" onclick="resetForm(); go('home',{replace:true})">${tr('Погнали','Let\'s go')}</button>
     `, {back:false, step:'12П'});
   },
@@ -1806,18 +1916,21 @@ const SCREENS = {
   },
 
   checkin(){
+    const m = state.missions[state.checkinMissionIndex];
+    const dayNumber = m ? (m.reportCount||0)+1 : 1;
     return screenShell(`
       <div class="eyebrow">${tr('Ежедневный чек-ин','Daily check-in')}</div>
       <h1>${tr('Как прошла миссия сегодня?','How did today\'s mission go?')}</h1>
-      <div class="stack" style="margin-top:20px;">
-        <button class="btn primary block" onclick="go('checkinYes',{replace:true})">${tr('Сделал','Did it')}</button>
+      <p class="hint" style="margin:-4px 0 4px;">${tr(`День ${dayNumber} — пришли видео, фото или текст в подтверждение.`, `Day ${dayNumber} — send a video, photo, or text as proof.`)}</p>
+      <div class="stack" style="margin-top:16px;">
+        <button class="btn primary block" onclick="startDailyReport(state.checkinMissionIndex)">${tr('Сделал','Did it')}</button>
         <button class="btn ghost block" onclick="go('checkinNo',{replace:true})">${tr('Пропустил','Missed it')}</button>
       </div>
+      ${m ? `<button class="btn ghost block" style="margin-top:20px;font-size:12.5px;" onclick="openMissionThread(state.checkinMissionIndex)">${tr('Смотреть отчёты по миссии','View mission reports')}</button>` : ''}
     `, {step:'D2'});
   },
 
   checkinYes(){
-    bumpMission();
     return screenShell(`
       <h1>${tr('Принято','Accepted')}</h1>
       <div class="cosmo-msg">
@@ -1834,6 +1947,40 @@ const SCREENS = {
         <div class="who">${tr('Космонавт','Cosmonaut')}</div>${tr('\n        Пшшщщщ... Связь прервалась на сутки. Такое бывает при манёврах. Борт на связи и никуда не улетает без тебя. Жду сигнала. Приём.\n      ','\n        Pshhhh... Contact lost for a day. Happens during maneuvers. The ship is on the line and isn\'t going anywhere without you. Waiting for your signal. Over.\n      ')}</div>
       <button class="btn primary block" style="margin-top:16px;" onclick="go('home',{replace:true})">${tr('Ок','OK')}</button>
     `, {back:false, step:'D3-b'});
+  },
+
+  // A mission's whole story in one place: the promise video first, then every
+  // dated/numbered report underneath it — day 1 at the top — exactly what
+  // followers see about this pilot's mission in the Illuminator feed.
+  missionThread(){
+    const m = state.missions[state.missionThreadFor];
+    if (!m) return screenShell(`<div class="placeholder-box">${tr('Миссия не найдена.','Mission not found.')}</div>`, {step:'thread'});
+    const posts = state.missionThreadPosts;
+    const postRow = (post) => {
+      const day = post.report_day ? tr(`День ${post.report_day}`,`Day ${post.report_day}`) : tr('Обещание','Promise');
+      const when = post.created_at ? new Date(post.created_at).toLocaleDateString(state.lang==='en'?'en-US':'ru-RU') : '';
+      const media = post.kind==='video'
+        ? `<video src="${post.video_url}" controls playsinline style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;background:#000;"></video>`
+        : post.kind==='photo'
+          ? `<img src="${post.photo_url}" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;">`
+          : `<p class="lead" style="margin-top:6px;">${post.text_body || ''}</p>`;
+      return `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="mtop"><span class="mtitle">${day}</span><span class="mtype">${when}</span></div>
+          ${media}
+          ${post.caption ? `<p class="hint" style="margin-top:6px;">${post.caption}</p>` : ''}
+        </div>
+      `;
+    };
+    return screenShell(`
+      <div class="eyebrow">${typeLabel(m.type)}</div>
+      <h1>${tf(m.title)}</h1>
+      <p class="hint" style="margin:-4px 0 14px;">${tr('Обещание и все отчёты по этой миссии — один за другим, с первого дня.','The promise and every report on this mission — one by one, from day one.')}</p>
+      ${state.missionThreadLoading ? `<p class="hint">${tr('Загружаем…','Loading…')}</p>` :
+        posts.length===0 ? `<div class="placeholder-box">${tr('Пока нет постов по этой миссии.','No posts on this mission yet.')}</div>` :
+        posts.map(postRow).join('')
+      }
+    `, {step: tr('Отчёты','Reports')});
   },
 
   profile(){
@@ -1917,28 +2064,65 @@ const SCREENS = {
 
   illuminator(){
     state.showNav = true;
+    // No standalone/random "record a video" entry here — every video is tied
+    // to a mission, so recording only ever starts from ЦУЦ (Mission Control),
+    // either while launching a new goal or reporting on one already running.
     return `
-      <div class="eyebrow">${tr('Иллюминатор','Porthole')}</div>
+      <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
       <h1>${tr('Лента','Feed')}</h1>
-      <p class="hint" style="margin:-4px 0 14px;">${tr('Видео-обещания и отчёты других пилотов — вживую, без монтажа.','Video promises and reports from other pilots — live, unedited.')}</p>
-      <button class="btn primary block" style="margin-bottom:14px;" onclick="state.illumRecording={status:'idle',caption:''}; go('illumRecord'); setTimeout(enterIllumRecordScreen,0);">${tr('● Записать своё видео','● Record your video')}</button>
-      ${state.illumPosts.map(postCard).join('')}
-      ${ILLUMINATOR_POSTS.map(postCard).join('')}
+      <p class="hint" style="margin:-4px 0 14px;">${tr('Видео-обещания и отчёты других пилотов — вживую, без монтажа. Показываем в первую очередь то, что близко твоим целям.','Video promises and reports from other pilots — live, unedited. Shown with what\'s closest to your own goals first.')}</p>
+      <button class="btn ghost block" style="margin-bottom:14px;" onclick="go('tickets')">${tr('Выбрать цель и записать своё обещание','Choose a goal and record your own promise')}</button>
+      ${recommendedIlluminatorPosts().map(postCard).join('')}
       <p class="hint">${tr('Все посты прошли модерацию перед публикацией.','All posts are moderated before publishing.')}</p>
     `;
   },
 
   illumRecord(){
-    const st = state.illumRecording.status;
+    const r = state.illumRecording;
+    const st = r.status;
+    const rules = proofRulesFor(r.missionType);
+    const proofType = r.proofType || 'video';
+    const titleLine = r.missionTitle ? `<p class="hint" style="margin:-4px 0 12px;">${r.isPromise ? tr('Обещание по миссии','Promise for the mission')+': ' : tr('Отчёт по миссии','Report for the mission')+': '}<b>${r.missionTitle}</b></p>` : '';
+    const typeChooser = (st==='uploading') ? '' : `
+      <div class="row-gap" style="margin-bottom:10px;">
+        ${rules.video ? chip(tr('Видео','Video'), proofType==='video', "setIllumProofType('video')") : ''}
+        ${rules.photo ? chip(tr('Фото','Photo'), proofType==='photo', "setIllumProofType('photo')") : ''}
+        ${rules.text ? chip(tr('Текст','Text'), proofType==='text', "setIllumProofType('text')") : ''}
+      </div>
+      <p class="hint" style="margin:-4px 0 12px;">${tf(rules.note)}</p>
+    `;
+
+    if (proofType === 'photo'){
+      return screenShell(`
+        <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
+        <h1>${r.isPromise ? tr('Фото-обещание','Photo promise') : tr('Фото-отчёт','Photo report')}</h1>
+        ${titleLine}${typeChooser}
+        ${r.photoPreview ? `<img src="${r.photoPreview}" style="width:100%;border-radius:16px;max-height:360px;object-fit:cover;display:block;margin-bottom:10px;">` : ''}
+        <input type="file" accept="image/*" capture="environment" onchange="handleIllumPhotoSelect(this)" style="display:block;margin-bottom:10px;color:var(--text-dim);">
+        <textarea rows="2" placeholder="${tr('Подпись к фото (необязательно)','Photo caption (optional)')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
+        <button class="btn primary block" style="margin-top:10px;" ${r.photoBlob?'':'disabled'} onclick="publishIllumPhoto()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
+      `, {step: tr('Фото','Photo')});
+    }
+    if (proofType === 'text'){
+      return screenShell(`
+        <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
+        <h1>${r.isPromise ? tr('Текстовое обещание','Text promise') : tr('Текстовый отчёт','Text report')}</h1>
+        ${titleLine}${typeChooser}
+        <textarea rows="5" placeholder="${tr('Опиши честно, как всё прошло','Describe honestly how it went')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
+        <button class="btn primary block" style="margin-top:10px;" ${r.caption&&r.caption.trim()?'':'disabled'} onclick="publishIllumText()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
+      `, {step: tr('Текст','Text')});
+    }
+
     return screenShell(`
-      <div class="eyebrow">${tr('Иллюминатор','Porthole')}</div>
-      <h1>${tr('Видео-обещание','Video promise')}</h1>
+      <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
+      <h1>${r.isPromise ? tr('Видео-обещание','Video promise') : tr('Видео-отчёт','Video report')}</h1>
+      ${titleLine}${typeChooser}
       <video id="cameraPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;max-height:360px;object-fit:cover;"></video>
       <div id="recTimer" class="hint" style="text-align:center;margin:8px 0;">${st==='recording'?'00:00':''}</div>
       ${st==='idle' ? `<button class="btn primary block" onclick="startIllumRecording()">${tr('● Начать запись','● Start recording')}</button>` : ''}
       ${st==='recording' ? `<button class="btn primary block" onclick="stopIllumRecording()">${tr('■ Остановить','■ Stop')}</button>` : ''}
       ${st==='reviewing' ? `
-        <textarea rows="2" placeholder="${tr('Подпись к видео (необязательно)','Video caption (optional)')}" oninput="state.illumRecording.caption=this.value">${state.illumRecording.caption}</textarea>
+        <textarea rows="2" placeholder="${tr('Подпись к видео (необязательно)','Video caption (optional)')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
         <div style="display:flex;gap:10px;margin-top:10px;">
           <button class="btn ghost block" onclick="retakeIllumRecording()">${tr('Заново','Retake')}</button>
           <button class="btn primary block" onclick="publishIllumRecording()">${tr('Опубликовать','Publish')}</button>
@@ -2027,7 +2211,7 @@ const SCREENS = {
       <p class="hint" style="margin:0 0 10px;">${tr('Постарайся описать цель как можно детальнее. Это заметно поможет до неё дойти.','Try to describe your goal in as much detail as possible. It noticeably helps you get there.')}</p>
       <textarea rows="3" placeholder="${tr('Например: переехать в новую квартиру до конца года','E.g.: move to a new apartment by the end of the year')}" oninput="state.result.goal=this.value; syncR()">${state.result.goal}</textarea>
       <h2>${tr('Тематика','Category')}</h2>
-      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Другое'].map(t=>chip(label(t), state.result.theme===t, `setResultTheme('${t}')`)).join('')}</div>
+      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.result.theme===t, `setResultTheme('${t}')`)).join('')}</div>
       ${state.result.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.result.themeOther}" oninput="state.result.themeOther=this.value; syncR()" />` : ''}
       <button class="btn primary block" id="btnR" style="margin-top:22px;" ${canContinueRGoal()?'':'disabled'} onclick="go('rCriteria')">${tr('Далее','Next')}</button>
     `, {step:'1Р'});
@@ -2098,7 +2282,7 @@ const SCREENS = {
       <h2>${tr('А для чего тебе конкретно эта цель?','And specifically, why does this goal matter to you?')}</h2>
       <p class="hint" style="margin:-2px 0 10px;">${tr('Что изменится, когда дойдёшь до цели? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you reach your goal? Will you respect or love yourself more? Why?')}</p>
       <textarea rows="3" placeholder="${tr('Опиши своими словами','Describe it in your own words')}" oninput="state.result.meaning=this.value; syncR()">${state.result.meaning}</textarea>
-      <button class="btn primary block" id="btnR" style="margin-top:22px;" ${state.result.meaning.trim()?'':'disabled'} onclick="go('rVideo')">${tr('Далее','Next')}</button>
+      <button class="btn primary block" id="btnR" style="margin-top:22px;" ${state.result.meaning.trim()?'':'disabled'} onclick="goToWizardVideo('rVideo','result')">${tr('Далее','Next')}</button>
     `, {step:'5Р'});
   },
 
@@ -2110,15 +2294,8 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 6 · Результат','Step 6 · Result')}</div>
       <h1>${tr('Скажи это на камеру','Say it to the camera')}</h1>
-      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я хочу ',', I want ')}<b>${habit}</b>${tr(' к ',' towards ')}<b>${deadline}</b>${n?`. ${tr('Разбил на','Split into')} <b>${n}</b> ${tr(n===1?'этап':'этапов','milestone'+(n===1?'':'s'))}`:''}. ${tr('Пойму, что дошёл, когда','I\'ll know I got there when')} ${because}». ${tr('Дальше — от себя: почему тебе это важно','Then, in your own words, why it matters to you')} (${state.result.meaning?state.result.meaning:'…'}).</div>
-      <div class="cam ${state.videoRecording?'recording':''}" id="cam">
-        <div class="dot" style="display:${state.videoRecording?'block':'none'}"></div>
-        ${state.result.videoDone
-          ? `<div style="font-family:var(--font-mono);font-size:13px;">${tr('Записано','Recorded')}</div>`
-          : `<button class="rec-btn" onclick="toggleRecordResult()"><i></i></button>`
-        }
-        <div class="timer" id="timer">${state.videoRecording? '00:0'+state.recSeconds : ''}</div>
-      </div>
+      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${(state.profile.name && state.profile.name.trim()) || tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я хочу ',', I want ')}<b>${habit}</b>${tr(' к ',' towards ')}<b>${deadline}</b>${n?`. ${tr('Разбил на','Split into')} <b>${n}</b> ${tr(n===1?'этап':'этапов','milestone'+(n===1?'':'s'))}`:''}. ${tr('Пойму, что дошёл, когда','I\'ll know I got there when')} ${because}». ${tr('Дальше — от себя: почему тебе это важно','Then, in your own words, why it matters to you')} (${state.result.meaning?state.result.meaning:'…'}).</div>
+      ${wizardCamBlock()}
       <button class="btn primary block" style="margin-top:18px;" ${state.result.videoDone?'':'disabled'} onclick="go('rSaving')">${tr('Далее','Next')}</button>
     `, {step:'6Р'});
   },
@@ -2180,7 +2357,7 @@ const SCREENS = {
         </div>
       </div>
       <div class="toggle-row">
-        <div><div class="t-title">${tr('Публичный режим','Public mode')}</div><div class="t-desc">${tr('+1000₽ · попадает в Иллюминатор после модерации','+1000₽ · goes into the Porthole after moderation')}</div></div>
+        <div><div class="t-title">${tr('Публичный режим','Public mode')}</div><div class="t-desc">${tr('+1000₽ · попадает в Иллюминатор после модерации','+1000₽ · goes into the Viewport after moderation')}</div></div>
         <div class="switch ${state.result.boosts.public?'on':''}" onclick="toggleResultBoost('public')"><i></i></div>
       </div>
       <div class="toggle-row">
@@ -2241,18 +2418,17 @@ const SCREENS = {
         ${text}
       </div>
       <p class="hint" style="margin-top:10px;">${tr('Драйв в профиле уже пошёл вверх — миссия запущена.','Your Drive score just went up — mission launched.')}</p>
-      ${state.result.boosts.public ? `<button class="btn block" style="margin-top:10px;" onclick="resetResultForm(); state.illumRecording={status:'idle',caption:''}; go('illumRecord'); setTimeout(enterIllumRecordScreen,0);">${tr('Записать видео-обещание','Record a video promise')}</button>` : ''}
       <button class="btn primary block" style="margin-top:10px;" onclick="resetResultForm(); go('home',{replace:true})">${tr('Погнали','Let\'s go')}</button>
     `, {back:false, step:'13Р'});
   },
 
   aGoal(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 2 · Аскеза','Step 2 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 2 · Аскеза','Step 2 · AAA')}</div>
       <h1>${tr('От чего отказываешься?','What are you giving up?')}</h1>
       <textarea rows="3" placeholder="${tr('Например: сладкое, соцсети после 22:00, алкоголь','E.g.: sweets, social media after 10pm, alcohol')}" oninput="state.askeza.goal=this.value; syncA()">${state.askeza.goal}</textarea>
       <h2>${tr('Тематика ','Category ')}<span class="hint" style="display:inline;">${tr('(необязательно)','(optional)')}</span></h2>
-      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Другое'].map(t=>chip(label(t), state.askeza.theme===t, `setAskezaTheme('${t}')`)).join('')}</div>
+      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.askeza.theme===t, `setAskezaTheme('${t}')`)).join('')}</div>
       ${state.askeza.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.askeza.themeOther}" oninput="state.askeza.themeOther=this.value" />` : ''}
       <button class="btn primary block" id="btnA" style="margin-top:22px;" ${state.askeza.goal.trim()?'':'disabled'} onclick="go('aMeaning')">${tr('Далее','Next')}</button>
     `, {step:'1А'});
@@ -2260,7 +2436,7 @@ const SCREENS = {
 
   aMeaning(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 3 · Аскеза','Step 3 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 3 · Аскеза','Step 3 · AAA')}</div>
       <h1>${tr('Почему это важно для тебя?','Why does this matter to you?')}</h1>
       <p class="lead">${tr('Это личное решение — наставник тут не давит и не разбирает твой тип поддержки, просто держит счётчик рядом.','This one\'s personal — the mentor doesn\'t push or dig into your support style here, just keeps the count alongside you.')}</p>
       <p class="hint" style="margin:-8px 0 10px;">${tr('Что изменится, когда откажешься от этого? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you give this up? Will you respect or love yourself more? Why?')}</p>
@@ -2273,7 +2449,7 @@ const SCREENS = {
   aDuration(){
     const minDate = new Date(Date.now()+21*86400000).toISOString().slice(0,10);
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 4 · Аскеза','Step 4 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 4 · Аскеза','Step 4 · AAA')}</div>
       <h1>${tr('На какой срок?','For how long?')}</h1>
       <p class="lead">${tr('Минимум — 21 день, дальше решаешь сам.','Minimum is 21 days, after that it\'s up to you.')}</p>
       <div class="row-gap">${ASKEZA_DURATIONS.map(d=>chip(d+' '+dayWord(d), state.askeza.duration&&state.askeza.duration.days===d, `setAskezaDuration(${d})`)).join('')}
@@ -2283,7 +2459,7 @@ const SCREENS = {
         <input type="date" style="margin-top:10px;" min="${minDate}" value="${state.askeza.customDeadline}" oninput="state.askeza.customDeadline=this.value; syncA()" />
         <p class="hint">${tr('Не раньше, чем через 21 день от сегодня.','No earlier than 21 days from today.')}</p>
       ` : ''}
-      <button class="btn primary block" id="btnA" style="margin-top:22px;" ${canContinueADuration()?'':'disabled'} onclick="go('aVideo')">${tr('Далее','Next')}</button>
+      <button class="btn primary block" id="btnA" style="margin-top:22px;" ${canContinueADuration()?'':'disabled'} onclick="goToWizardVideo('aVideo','askeza')">${tr('Далее','Next')}</button>
     `, {step:'3А'});
   },
 
@@ -2291,20 +2467,13 @@ const SCREENS = {
     const habit = state.askeza.goal || '…';
     const dur = askezaDurationLabel();
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 5 · Аскеза','Step 5 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 5 · Аскеза','Step 5 · AAA')}</div>
       <h1>${tr('Скажи это на камеру','Say it to the camera')}</h1>
-      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я отказываюсь от «',', I\'m giving up “')}<b>${habit}</b>${tr('» на ','” for ')}<b>${dur}</b>, ${tr('потому что','because')} ${state.askeza.meaning?state.askeza.meaning:'…'}».</div>
+      <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${(state.profile.name && state.profile.name.trim()) || tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я отказываюсь от «',', I\'m giving up “')}<b>${habit}</b>${tr('» на ','” for ')}<b>${dur}</b>, ${tr('потому что','because')} ${state.askeza.meaning?state.askeza.meaning:'…'}».</div>
       <p class="hint" style="margin-bottom:12px;">${tr('По нашей системе — даже обращение к самому себе на видео заметно повышает шанс дойти до конца. Это не для нас, это для тебя — можешь пересмотреть в трудный момент.','Our data shows that even talking to yourself on video noticeably improves your odds of following through. This isn\'t for us, it\'s for you — you can rewatch it in a hard moment.')}</p>
-      <div class="cam ${state.videoRecording?'recording':''}" id="cam">
-        <div class="dot" style="display:${state.videoRecording?'block':'none'}"></div>
-        ${state.askeza.videoDone
-          ? `<div style="font-family:var(--font-mono);font-size:13px;">${tr('Записано','Recorded')}</div>`
-          : `<button class="rec-btn" onclick="toggleRecordAskeza()"><i></i></button>`
-        }
-        <div class="timer" id="timer">${state.videoRecording? '00:0'+state.recSeconds : ''}</div>
-      </div>
+      ${wizardCamBlock()}
       <button class="btn primary block" style="margin-top:18px;" ${state.askeza.videoDone?'':'disabled'} onclick="go('aSaving')">${tr('Далее','Next')}</button>
-      <button class="btn ghost block" style="margin-top:8px;font-size:12.5px;" onclick="state.askeza.videoSkipped=true; go('aSaving')">${tr('Пропустить','Skip')}</button>
+      <button class="btn ghost block" style="margin-top:8px;font-size:12.5px;" onclick="stopWizardMedia(); state.askeza.videoSkipped=true; go('aSaving')">${tr('Пропустить','Skip')}</button>
     `, {step:'4А'});
   },
 
@@ -2320,9 +2489,9 @@ const SCREENS = {
 
   aMentor(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 6 · Аскеза','Step 6 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 6 · Аскеза','Step 6 · AAA')}</div>
       <h1>${tr('Кто будет рядом?','Who\'ll be by your side?')}</h1>
-      <p class="lead">${tr('Космонавт — бесплатно всегда. У Аскезы нет платного тарифа, поэтому остальные наставники — только платная докупка, без бесплатной тройки.','Cosmonaut is always free. Vow has no paid plan, so the other mentors are paid add-ons only — no free trio.')}</p>
+      <p class="lead">${tr('Космонавт — бесплатно всегда. У Аскезы нет платного тарифа, поэтому остальные наставники — только платная докупка, без бесплатной тройки.','Cosmonaut is always free. AAA has no paid plan, so the other mentors are paid add-ons only — no free trio.')}</p>
       <h2>${tr('Бесплатный','Free')}</h2>
       <div class="mentor-scroll">${mentorCard('Космонавт',0,state.askeza)}</div>
       <h2>${tr('Платные · 500₽','Paid · 500₽')}</h2>
@@ -2335,9 +2504,9 @@ const SCREENS = {
 
   aBoosts(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 7 · Аскеза','Step 7 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 7 · Аскеза','Step 7 · AAA')}</div>
       <h1>${tr('Что подключить?','What should we turn on?')}</h1>
-      <p class="lead">${tr('Аскеза бесплатна в основе — здесь только докупки.','Vow is free at its core — these are optional add-ons only.')}</p>
+      <p class="lead">${tr('Аскеза бесплатна в основе — здесь только докупки.','AAA is free at its core — these are optional add-ons only.')}</p>
       <div class="toggle-row">
         <div><div class="t-title">${tr('Позвать свидетеля','Invite a witness')}</div><div class="t-desc">${tr('Конкретный человек, не публичная лента · +300₽ за каждого','A specific person, not a public feed · +300₽ per person')}</div></div>
         <div class="switch ${state.askeza.boosts.witnesses?'on':''}" onclick="toggleAskezaBoost('witnesses')"><i></i></div>
@@ -2374,7 +2543,7 @@ const SCREENS = {
 
   aSummary(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · AAA')}</div>
       <h1>${tr('Сводка','Summary')}</h1>
       <div class="card">
         <div class="summary-line"><span class="k">${tr('Отказ','Giving up')}</span><span class="v">${state.askeza.goal} · ${askezaDurationLabel()}</span></div>
@@ -2390,7 +2559,7 @@ const SCREENS = {
 
   aPayment(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Vow')}</div>
+      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · AAA')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
       <div class="stack">
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('aConfirm',{replace:true})">
@@ -2533,7 +2702,7 @@ function mentorInfoBox(formRef){
   const img = MENTOR_IMAGES[name];
   const price = MENTORS_PAID.includes(name) ? 500 : 0;
   const setFn = mentorSetterName(formRef||state.form);
-  return `<div class="mentor-profile">
+  return `<div class="mentor-profile" id="mentorProfileBox">
     <div class="mp-head">
       <div class="mp-photo" style="${img?`background-image:url('${img}')`:''}">${img?'':name[0]}</div>
       <div>
@@ -2542,10 +2711,12 @@ function mentorInfoBox(formRef){
       </div>
     </div>
     ${intro ? `<div class="mp-intro">«${tf(intro)}»</div>` : ''}
-    <div class="mp-row"><div class="mp-label">${tr('Кто это','Who they are')}</div><div class="mp-text">${tf(info.bio)}</div></div>
-    <div class="mp-row"><div class="mp-label">${tr('Энергетика','Energy')}</div><div class="mp-text">${tf(info.energy)}</div></div>
-    <div class="mp-row"><div class="mp-label">${tr('Тон поддержки','Tone of support')}</div><div class="mp-text">${tf(info.tone)}</div></div>
-    <div class="mp-row"><div class="mp-label">${tr('Подходит, если','Good fit if')}</div><div class="mp-text">${tf(info.fit)}</div></div>
+    <div class="mp-scroll">
+      <div class="mp-row"><div class="mp-label">${tr('Кто это','Who they are')}</div><div class="mp-text">${tf(info.bio)}</div></div>
+      <div class="mp-row"><div class="mp-label">${tr('Энергетика','Energy')}</div><div class="mp-text">${tf(info.energy)}</div></div>
+      <div class="mp-row"><div class="mp-label">${tr('Тон поддержки','Tone of support')}</div><div class="mp-text">${tf(info.tone)}</div></div>
+      <div class="mp-row"><div class="mp-label">${tr('Подходит, если','Good fit if')}</div><div class="mp-text">${tf(info.fit)}</div></div>
+    </div>
     <button class="btn primary block" style="margin-top:14px;" onclick="${setFn}('${name}',${price}); state.mentorInfoFor=null; render();">${tr('Выбрать наставника','Choose a mentor')}</button>
   </div>`;
 }
@@ -2631,13 +2802,26 @@ function toggleActivityTime(v){
 function setPsychotype(v){ state.form.psychotype=v; render(); }
 function setSupportStyle(v){ state.form.supportStyle=v; render(); }
 function setMentor(name, price){ state.form.mentor={name,price}; render(); }
-function showMentorInfo(name){ state.mentorInfoFor = (state.mentorInfoFor===name ? null : name); render(); }
+function showMentorInfo(name){
+  const opening = state.mentorInfoFor !== name;
+  state.mentorInfoFor = (state.mentorInfoFor===name ? null : name);
+  render();
+  if(opening){
+    // The bio itself scrolls internally (see .mp-scroll), but the box can still
+    // open below the fold on a long mentor list — bring it into view so the
+    // description is never effectively invisible/unreachable.
+    setTimeout(() => {
+      const el = document.getElementById('mentorProfileBox');
+      if(el && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+    }, 0);
+  }
+}
 function pickRandomMentor(target){
   const paid = Math.random() < 0.7;
   const pool = paid ? MENTORS_PAID.map(n=>({name:n,price:500})) : MENTORS_FREE.map(n=>({name:n,price:0}));
   const pick = pool[Math.floor(Math.random()*pool.length)];
   if(target==='result') state.result.mentor = pick; else state.form.mentor = pick;
-  render();
+  go(target==='result' ? 'rBoosts' : 'boosts');
 }
 function setStake(v){ state.form.boosts.stake=v; render(); }
 function toggleOnboardCheck(field){ state.onboard[field] = !state.onboard[field]; render(); }
@@ -2666,6 +2850,24 @@ function finishOnboarding(lang){
 }
 function togglePublic(){ state.form.boosts.public=!state.form.boosts.public; render(); }
 
+// Every recording is started for a specific, just-launched mission — never
+// as a standalone action — so we snapshot its type/title here before the
+// wizard form is reset, and carry it through to the illumRecord screen so
+// the proof-type rules (video/photo/text) for that mission type apply.
+function startPromiseRecording(){
+  const m = state.missions[state.missions.length-1];
+  state.illumRecording = {
+    status:'idle', caption:'',
+    proofType:'video',
+    missionType: m ? m.type : 'Привычка',
+    missionTitle: m ? tf(m.title) : '',
+    missionId: m ? m.dbId : null,
+    isPromise: true
+  };
+  go('illumRecord');
+  setTimeout(enterIllumRecordScreen,0);
+}
+
 /* ==== Иллюминатор: запись видео прямо в приложении (getUserMedia + MediaRecorder) ==== */
 let illumStream = null, illumRecorder = null, illumChunks = [], illumBlob = null, illumTimerHandle = null, illumSeconds = 0;
 
@@ -2678,9 +2880,22 @@ function stopIllumMedia(){
 
 async function enterIllumRecordScreen(){
   try {
-    illumStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+    illumStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width: { ideal: 1080 },
+        height: { ideal: 1920 },
+        frameRate: { ideal: 30, max: 30 }
+      },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
     const video = document.getElementById('cameraPreview');
-    if (video) video.srcObject = illumStream;
+    if (video) {
+      video.srcObject = illumStream;
+      // Front camera preview mirrors like a native iPhone camera app.
+      // The recorded/published file itself is left un-mirrored (see below).
+      video.style.transform = 'scaleX(-1)';
+    }
   } catch (e) {
     console.warn('camera access failed', e);
     const video = document.getElementById('cameraPreview');
@@ -2699,7 +2914,10 @@ function startIllumRecording(){
   const mimeCandidates = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
   const mime = mimeCandidates.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
   try {
-    illumRecorder = mime ? new MediaRecorder(illumStream, { mimeType: mime }) : new MediaRecorder(illumStream);
+    // Higher bitrate for a sharper, less compressed recording.
+    illumRecorder = mime
+      ? new MediaRecorder(illumStream, { mimeType: mime, videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 })
+      : new MediaRecorder(illumStream, { videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 });
   } catch (e) { console.warn('MediaRecorder init failed', e); return; }
   illumRecorder.ondataavailable = (e) => { if (e.data && e.data.size>0) illumChunks.push(e.data); };
   illumRecorder.onstop = () => {
@@ -2708,7 +2926,11 @@ function startIllumRecording(){
     render();
     setTimeout(() => {
       const video = document.getElementById('cameraPreview');
-      if (video) { video.srcObject = null; video.muted = false; video.src = URL.createObjectURL(illumBlob); }
+      if (video) {
+        video.srcObject = null; video.muted = false; video.src = URL.createObjectURL(illumBlob);
+        // Playback of the saved file is shown the right way round, not mirrored.
+        video.style.transform = 'none';
+      }
     }, 0);
   };
   illumRecorder.start();
@@ -2717,7 +2939,7 @@ function startIllumRecording(){
   render();
   setTimeout(() => {
     const video = document.getElementById('cameraPreview');
-    if (video && illumStream) video.srcObject = illumStream;
+    if (video && illumStream) { video.srcObject = illumStream; video.style.transform = 'scaleX(-1)'; }
   }, 0);
   illumTimerHandle = setInterval(() => {
     illumSeconds++;
@@ -2734,22 +2956,93 @@ function stopIllumRecording(){
 
 function retakeIllumRecording(){
   illumBlob = null;
-  state.illumRecording = { status:'idle', caption:'' };
+  state.illumRecording = { ...state.illumRecording, status:'idle', caption:'' };
   render();
   setTimeout(enterIllumRecordScreen, 0);
 }
 
 async function publishIllumRecording(){
   if (!illumBlob) return;
+  const r = state.illumRecording;
   state.illumRecording.status = 'uploading';
   render();
-  const post = await uploadIlluminatorVideo(illumBlob, state.illumRecording.caption, null);
+  const post = await uploadIlluminatorProof({
+    kind:'video', blob: illumBlob, caption: r.caption, missionType: r.missionType,
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+  });
   stopIllumMedia();
   illumBlob = null;
-  state.illumRecording = { status:'idle', caption:'' };
   if (post) state.illumPosts.unshift(post);
-  go('illuminator', {replace:true});
+  finishIllumPublish(r, post);
+}
+
+// Photo and text proof share the same mission-context envelope as video, just
+// without a camera stream — used when the mission type's proof rules allow
+// a lighter-weight check-in (see PROOF_RULES).
+function handleIllumPhotoSelect(input){
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { state.illumRecording.photoBlob = file; state.illumRecording.photoPreview = reader.result; render(); };
+  reader.readAsDataURL(file);
+}
+
+async function publishIllumPhoto(){
+  const r = state.illumRecording;
+  if (!r.photoBlob) return;
+  state.illumRecording.status = 'uploading';
+  render();
+  const post = await uploadIlluminatorProof({
+    kind:'photo', blob: r.photoBlob, caption: r.caption, missionType: r.missionType,
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+  });
+  if (post) state.illumPosts.unshift(post);
+  finishIllumPublish(r, post);
+}
+
+async function publishIllumText(){
+  const r = state.illumRecording;
+  if (!r.caption || !r.caption.trim()) return;
+  state.illumRecording.status = 'uploading';
+  render();
+  const post = await uploadIlluminatorProof({
+    kind:'text', caption: r.caption, missionType: r.missionType,
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+  });
+  if (post) state.illumPosts.unshift(post);
+  finishIllumPublish(r, post);
+}
+
+// Shared tail for all three proof kinds: a standalone/promise post returns to
+// the Illuminator feed as before; a daily report (checkinIndex set) instead
+// bumps that mission's progress + report count and lands on the same
+// "Accepted" confirmation the old fake check-in used to show directly.
+function finishIllumPublish(r, post){
+  const checkinIndex = r.checkinIndex;
+  state.illumRecording = { status:'idle', caption:'' };
+  if (checkinIndex != null){
+    const m = state.missions[checkinIndex];
+    if (m) m.reportCount = (m.reportCount||0) + 1;
+    bumpMission(checkinIndex);
+    go('checkinYes', {replace:true});
+  } else {
+    go('illuminator', {replace:true});
+  }
   loadIlluminatorPosts();
+}
+
+function setIllumProofType(type){
+  const rules = proofRulesFor(state.illumRecording.missionType);
+  if (!rules[type]) return;
+  const wasVideo = state.illumRecording.proofType === 'video';
+  state.illumRecording.proofType = type;
+  if (type === 'video'){
+    render();
+    setTimeout(enterIllumRecordScreen, 0);
+  } else {
+    if (wasVideo) stopIllumMedia();
+    render();
+  }
 }
 function toggleProfile(){ state.form.profileExpanded=!state.form.profileExpanded; render(); }
 function syncPrimary(){
@@ -2770,21 +3063,130 @@ function openTicket(id){
   go('ticketConfirm');
 }
 
-let recTimer=null;
-function toggleRecord(){
-  state.videoRecording = !state.videoRecording;
-  state.recSeconds = 0;
-  if(state.videoRecording){
-    recTimer = setInterval(()=>{ state.recSeconds++; safeRender(); }, 1000);
-  } else {
-    clearInterval(recTimer);
-    state.form.videoDone = true;
+/* ==== "Say it to the camera" — real recording, shared by the Habit/Result/
+   Ascesis launch wizards. Mirrors the Illuminator recorder (same mirroring
+   fix, same bitrate), but keeps its own state so a wizard step and an
+   Illuminator recording never fight over the same stream. ==== */
+let wizStream = null, wizRecorder = null, wizChunks = [], wizBlob = null, wizTimerHandle = null, wizSeconds = 0;
+
+async function enterWizardCam(){
+  try {
+    wizStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 }, frameRate: { ideal: 30, max: 30 } },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    const video = document.getElementById('wizCamPreview');
+    if (video) { video.srcObject = wizStream; video.style.transform = 'scaleX(-1)'; }
+  } catch (e) {
+    console.warn('wizard camera access failed', e);
+    const video = document.getElementById('wizCamPreview');
+    if (video) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = tr('Не удалось получить доступ к камере. Проверь разрешения в настройках Telegram/браузера.', "Couldn't access the camera. Check permissions in Telegram/browser settings.");
+      video.replaceWith(p);
+    }
   }
+}
+function stopWizardMedia(){
+  try { if (wizRecorder && wizRecorder.state !== 'inactive') wizRecorder.stop(); } catch(e){}
+  try { if (wizStream) wizStream.getTracks().forEach(t=>t.stop()); } catch(e){}
+  wizStream = null; wizRecorder = null;
+  if (wizTimerHandle) { clearInterval(wizTimerHandle); wizTimerHandle = null; }
+}
+function goToWizardVideo(screen, target){
+  const alreadyDone = target==='result' ? state.result.videoDone : target==='askeza' ? state.askeza.videoDone : state.form.videoDone;
+  state.wizCam = { status: alreadyDone ? 'done' : 'idle', target };
+  go(screen);
+  if(!alreadyDone) setTimeout(enterWizardCam, 0);
+}
+function startWizardRecording(){
+  if (!wizStream) return;
+  wizChunks = [];
+  const mimeCandidates = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+  const mime = mimeCandidates.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+  try {
+    wizRecorder = mime
+      ? new MediaRecorder(wizStream, { mimeType: mime, videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 })
+      : new MediaRecorder(wizStream, { videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 });
+  } catch (e) { console.warn('wizard MediaRecorder init failed', e); return; }
+  wizRecorder.ondataavailable = (e) => { if (e.data && e.data.size>0) wizChunks.push(e.data); };
+  wizRecorder.onstop = () => {
+    wizBlob = new Blob(wizChunks, { type: (wizRecorder && wizRecorder.mimeType) || 'video/webm' });
+    state.wizCam.status = 'reviewing';
+    render();
+    setTimeout(() => {
+      const video = document.getElementById('wizCamPreview');
+      if (video) { video.srcObject = null; video.muted = false; video.src = URL.createObjectURL(wizBlob); video.style.transform = 'none'; }
+    }, 0);
+  };
+  wizRecorder.start();
+  state.wizCam.status = 'recording';
+  wizSeconds = 0;
+  render();
+  setTimeout(() => {
+    const video = document.getElementById('wizCamPreview');
+    if (video && wizStream) { video.srcObject = wizStream; video.style.transform = 'scaleX(-1)'; }
+  }, 0);
+  wizTimerHandle = setInterval(() => {
+    wizSeconds++;
+    const t = document.getElementById('wizRecTimer');
+    if (t) t.textContent = String(Math.floor(wizSeconds/60)).padStart(2,'0')+':'+String(wizSeconds%60).padStart(2,'0');
+    if (wizSeconds >= 90) stopWizardRecording();
+  }, 1000);
+}
+function stopWizardRecording(){
+  if (wizTimerHandle) { clearInterval(wizTimerHandle); wizTimerHandle = null; }
+  try { if (wizRecorder && wizRecorder.state !== 'inactive') wizRecorder.stop(); } catch(e){}
+}
+function retakeWizardRecording(){
+  wizBlob = null;
+  state.wizCam.status = 'idle';
+  render();
+  setTimeout(enterWizardCam, 0);
+}
+function confirmWizardVideo(){
+  const target = state.wizCam.target;
+  state.wizCam.status = 'done';
+  if(target==='result') state.result.videoDone = true;
+  else if(target==='askeza') state.askeza.videoDone = true;
+  else state.form.videoDone = true;
+  stopWizardMedia();
   render();
 }
+// Once a mission is launched, the video just recorded in the wizard becomes
+// that mission's permanent main promise — stored on the mission itself, and
+// pushed into the Illuminator feed only when the pilot paid for Public mode.
+// This is also why the old "record a promise" prompt after payment is gone:
+// there is now exactly one moment where the promise gets recorded.
+async function attachWizardPromiseVideo(createPromise, mission, isPublic){
+  if(!wizBlob) return;
+  const blob = wizBlob;
+  wizBlob = null;
+  if(!sb) return;
+  try {
+    await createPromise;
+    const fileName = `${TG_ID}_promise_${Date.now()}.webm`;
+    const { error: upErr } = await sb.storage.from('illuminator-videos').upload(fileName, blob, { contentType: blob.type || 'video/webm' });
+    if (upErr) throw upErr;
+    const { data: pub } = sb.storage.from('illuminator-videos').getPublicUrl(fileName);
+    const url = pub && pub.publicUrl;
+    if (mission.dbId){
+      await sb.from('missions').update({ promise_kind:'video', promise_video_url:url, public: !!isPublic }).eq('id', mission.dbId);
+    }
+    if (isPublic){
+      const { data: inserted } = await sb.from('illuminator_posts').insert({
+        user_id: TG_ID, author_name: state.profile.name, mission_type: mission.type,
+        mission_title: mission.title, mission_id: mission.dbId || null, is_promise: true, kind:'video', video_url:url, caption:''
+      }).select('*').maybeSingle();
+      if (inserted){ state.illumPosts.unshift(inserted); safeRender(); }
+    }
+  } catch(e){ console.warn('attachWizardPromiseVideo failed', e); }
+}
 
-function bumpMission(){
-  const m = state.missions[0];
+function bumpMission(i){
+  const idx = (i!=null) ? i : (state.checkinMissionIndex!=null ? state.checkinMissionIndex : 0);
+  const m = state.missions[idx];
   if(!m) return;
   const wasComplete = m.progress >= 100;
   m.progress = Math.min(100, m.progress+4);
@@ -2801,17 +3203,64 @@ function bumpMission(){
 function openMissionCheck(i){
   const m = state.missions[i];
   if(!m) return;
+  state.checkinMissionIndex = i;
   if(m.type==='Аскеза'){
     go(m.progress>=100 ? 'askezaSuccess' : 'askezaCheck');
   } else {
     go('checkin');
   }
 }
+// The one daily reporting moment for Habit/Result missions: reuses the same
+// real-camera Illuminator recording engine and PROOF_RULES used for the
+// mission's initial promise, just tagged as report N instead of a promise —
+// so it lands as a dated, numbered post threaded under that mission, visible
+// on the pilot's profile and in the Illuminator feed for followers/mentors.
+function startDailyReport(i){
+  const m = state.missions[i];
+  if(!m) return;
+  const rules = proofRulesFor(m.type);
+  const dayNumber = (m.reportCount||0) + 1;
+  state.illumRecording = {
+    status:'idle', caption:'',
+    proofType: rules.video ? 'video' : (rules.photo ? 'photo' : 'text'),
+    missionType: m.type,
+    missionTitle: tf(m.title),
+    missionId: m.dbId || null,
+    isPromise: false,
+    reportDay: dayNumber,
+    reportTotalDays: m.totalDays || null,
+    checkinIndex: i
+  };
+  go('illumRecord');
+  setTimeout(enterIllumRecordScreen, 0);
+}
+function openMissionThread(i){
+  const m = state.missions[i];
+  if(!m) return;
+  state.missionThreadFor = i;
+  go('missionThread');
+  loadMissionThread(m);
+}
+async function loadMissionThread(m){
+  state.missionThreadLoading = true;
+  safeRender();
+  if (sb){
+    try {
+      let query = sb.from('illuminator_posts').select('*').eq('user_id', TG_ID);
+      query = m.dbId ? query.eq('mission_id', m.dbId) : query.eq('mission_title', tf(m.title));
+      const { data } = await query.order('is_promise', { ascending:false }).order('report_day', { ascending:true });
+      state.missionThreadPosts = data || [];
+    } catch (e) { console.warn('loadMissionThread failed', e); state.missionThreadPosts = []; }
+  }
+  state.missionThreadLoading = false;
+  safeRender();
+}
 function addMissionFromForm(){
   const mission = { title: label(effectiveHabitName()) || tr('Новая миссия','New mission'), type:'Привычка', progress: 6, mentor: state.form.mentor ? state.form.mentor.name : null };
   state.missions.unshift(mission);
   state.profile.launchedByType['Привычка'] = (state.profile.launchedByType['Привычка']||0) + 1;
-  dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null);
+  attachWizardPromiseVideo(createPromise, mission, state.form.boosts.public);
   dbUpsertUserStats();
 }
 function resetForm(){
@@ -2870,17 +3319,6 @@ function syncA(){
   else if(state.screen==='aMeaning') b.disabled = !state.askeza.meaning.trim();
   else if(state.screen==='aDuration') b.disabled = !canContinueADuration();
 }
-function toggleRecordAskeza(){
-  state.videoRecording = !state.videoRecording;
-  state.recSeconds = 0;
-  if(state.videoRecording){
-    recTimer = setInterval(()=>{ state.recSeconds++; safeRender(); }, 1000);
-  } else {
-    clearInterval(recTimer);
-    state.askeza.videoDone = true;
-  }
-  render();
-}
 function totalAskezaPrice(){
   let sum = 0;
   if(state.askeza.mentor && state.askeza.mentor.price) sum += state.askeza.mentor.price;
@@ -2896,7 +3334,8 @@ function addAskezaMissionFromForm(){
   const mission = { title: state.askeza.goal || tr('Новая аскеза','New vow'), type:'Аскеза', progress: 4, mentor: state.askeza.mentor ? state.askeza.mentor.name : null };
   state.missions.unshift(mission);
   state.profile.launchedByType['Аскеза'] = (state.profile.launchedByType['Аскеза']||0) + 1;
-  dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null);
+  attachWizardPromiseVideo(createPromise, mission, false);
   dbUpsertUserStats();
 }
 function resetAskezaMissionProgress(){
@@ -2954,23 +3393,13 @@ function totalResultPrice(){
   return sum;
 }
 
-function toggleRecordResult(){
-  state.videoRecording = !state.videoRecording;
-  state.recSeconds = 0;
-  if(state.videoRecording){
-    recTimer = setInterval(()=>{ state.recSeconds++; safeRender(); }, 1000);
-  } else {
-    clearInterval(recTimer);
-    state.result.videoDone = true;
-  }
-  render();
-}
 
 function addResultMissionFromForm(){
   const mission = { title: state.result.goal || tr('Новая цель','New goal'), type:'Результат', progress: 4, mentor: state.result.mentor ? state.result.mentor.name : null };
   state.missions.unshift(mission);
   state.profile.launchedByType['Результат'] = (state.profile.launchedByType['Результат']||0) + 1;
-  dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null);
+  attachWizardPromiseVideo(createPromise, mission, state.result.boosts.public);
   dbUpsertUserStats();
 }
 function resetResultForm(){
@@ -2992,7 +3421,7 @@ function navBar(){
   const items = [
     {id:'home', label:tr('Главная','Home'), icon:'home'},
     {id:'profile', label:tr('Профиль','Profile'), icon:'profile'},
-    {id:'illuminator', label:tr('Иллюминатор','Porthole'), icon:'illum'},
+    {id:'illuminator', label:tr('Иллюминатор','Viewport'), icon:'illum'},
     {id:'more', label:tr('Ещё','More'), icon:'more'},
   ];
   return items.map(it=>`
@@ -3041,7 +3470,6 @@ function safeRender(){
 })();
 render();
 hydrateFromDB();
-
 
 
 /* ===== Telegram Mini App integration ===== */
