@@ -488,6 +488,28 @@ const NAV_ICONS = {
   more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>'
 };
 
+// Uniform line-icon set for profile visuals (ranks, achievements, fleet) —
+// same stroke weight/style as NAV_ICONS, so badges and ranks read as one
+// consistent brand system instead of mismatched platform emoji.
+const ICONS = {
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4l7 4v6l-7 4-7-4V8z"/><path d="M12 4v14"/></svg>',
+  rocket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2c3 2 5 6 5 10 0 2-1 4-2 5l-3 3-3-3c-1-1-2-3-2-5 0-4 2-8 5-10z"/><circle cx="12" cy="10" r="1.6"/><path d="M9 16l-3 3M15 16l3 3"/></svg>',
+  'medal-star': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3h8l-2 6-2-1-2 1z"/><circle cx="12" cy="14" r="6.5"/><path d="M12 10.5l1.1 2.3 2.5.35-1.8 1.75.4 2.5-2.2-1.15-2.2 1.15.4-2.5-1.8-1.75 2.5-.35z" fill="currentColor" stroke="none"/></svg>',
+  'medal-1st': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h10l-2.4 6.2-2.6-1.3-2.6 1.3z"/><circle cx="12" cy="14.5" r="6"/><path d="M11 12v5M11 12.3l-1.2.8" stroke-width="1.3"/></svg>',
+  crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 18h16l-1.4-8-4.1 3.2L12 7l-2.5 6.2L5.4 10z"/><path d="M4 18v2h16v-2"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 21V4"/><path d="M6 4h13l-3 4 3 4H6"/></svg>',
+  runner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="15" cy="4.5" r="1.7" fill="currentColor" stroke="none"/><path d="M13 8l-4 2 1 4 4 1.5L13 21M9 10l-4 1.5M15 12l3 2 3-1M13 8l3 1.5"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  flame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3c1 3-3 4-3 8a4 4 0 0 0 8 0c0-1.5-1-2-1-2 .5 2-1 3-2 3-1.5 0-2.5-1.2-2-3 .3-1.2 1.5-2 0-6z"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3"/><path d="M12 14v3M9 21h6M9.5 21c0-2 1-2.5 2.5-2.5s2.5.5 2.5 2.5"/></svg>',
+  handshake: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 12l4-4 4 3 3-3 3 3 4-4 2 2-5 6-3-2-2 2-3-2-3 2z"/></svg>',
+  flex: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 13c2-3 4-4 6-3l2 1 4-2c2-1 4 0 5 2l1 3-2 1-1-2-2 4-4 2-5-2-2-3z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="1.5"/><path d="M16 10l5-2.5v9L16 14"/></svg>'
+};
+function icon(name, cls){ return `<span class="icon${cls?' '+cls:''}">${ICONS[name]||''}</span>`; }
+
 const USER_NAME = 'Денис';
 const USER_NAME_EN = 'Alex';
 
@@ -565,7 +587,7 @@ function tf(field){
 }
 // Small label lookups for internal RU keys that must stay RU in state/logic
 // (mission types, weekdays, months) but need an English display form.
-const TYPE_LABEL_EN = { 'Привычка':'Habit', 'Результат':'Result', 'Аскеза':'AAA' };
+const TYPE_LABEL_EN = { 'Привычка':'Habit', 'Результат':'Result', 'Аскеза':'Ascesa' };
 function typeLabel(type){ return state.lang==='en' ? (TYPE_LABEL_EN[type]||type) : type; }
 const WEEKDAY_LABEL_EN = { 'Пн':'Mon','Вт':'Tue','Ср':'Wed','Чт':'Thu','Пт':'Fri','Сб':'Sat','Вс':'Sun' };
 function weekdayLabel(d){ return state.lang==='en' ? (WEEKDAY_LABEL_EN[d]||d) : d; }
@@ -673,6 +695,8 @@ async function hydrateFromDB(){
       state.profile.crew.inspiredCount = userRow.crew_inspired_count;
       if (userRow.completed_by_type && Object.keys(userRow.completed_by_type).length) state.profile.completedByType = userRow.completed_by_type;
       if (userRow.launched_by_type && Object.keys(userRow.launched_by_type).length) state.profile.launchedByType = userRow.launched_by_type;
+      if (userRow.bio) state.profile.bio = userRow.bio;
+      if (userRow.avatar_url) state.profile.avatarUrl = userRow.avatar_url;
       // Local storage wins if the viewer already picked a language on this device;
       // otherwise fall back to what's saved for them in the DB (defaults to 'ru').
       if (!getStoredLang() && (userRow.language === 'en' || userRow.language === 'ru')) {
@@ -682,7 +706,7 @@ async function hydrateFromDB(){
     if (!dbUserIsNew) {
       const { data: activeMissions } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','active').order('created_at', { ascending:false });
       if (activeMissions) {
-        state.missions = activeMissions.map(m => ({ title:m.title, type:m.type, progress:m.progress, dbId:m.id, mentor:m.mentor||null }));
+        state.missions = activeMissions.map(m => ({ title:m.title, type:m.type, progress:m.progress, dbId:m.id, mentor:m.mentor||null, reportCount:m.report_count||0, totalDays:m.target_days||null, lastReportDate:m.last_report_date||null, isPublic:!!m.public }));
       }
     }
     dbHydrated = true;
@@ -702,6 +726,8 @@ async function dbUpsertUserStats(){
       crew_inspired_count: state.profile.crew.inspiredCount,
       completed_by_type: state.profile.completedByType,
       launched_by_type: state.profile.launchedByType,
+      bio: state.profile.bio || null,
+      avatar_url: state.profile.avatarUrl || null,
       updated_at: new Date().toISOString(),
     }).eq('telegram_id', TG_ID);
   } catch (e) { console.warn('dbUpsertUserStats failed', e); }
@@ -711,7 +737,8 @@ async function dbCreateMission(mission, mentorName){
   if (!sb) return;
   try {
     const { data } = await sb.from('missions').insert({
-      user_id: TG_ID, type: mission.type, title: mission.title, mentor: mentorName || null, progress: mission.progress
+      user_id: TG_ID, type: mission.type, title: mission.title, mentor: mentorName || null, progress: mission.progress,
+      target_days: mission.totalDays || null, meaning: mission.meaning || null
     }).select('id').maybeSingle();
     if (data) mission.dbId = data.id;
   } catch (e) { console.warn('dbCreateMission failed', e); }
@@ -720,10 +747,11 @@ async function dbCreateMission(mission, mentorName){
 async function dbLogProgress(mission){
   if (!sb || !mission || !mission.dbId) return;
   try {
+    const today = new Date().toISOString().slice(0,10);
     await sb.from('progress_logs').upsert({
-      mission_id: mission.dbId, user_id: TG_ID, log_date: new Date().toISOString().slice(0,10), completed: true
+      mission_id: mission.dbId, user_id: TG_ID, log_date: today, completed: true
     }, { onConflict: 'mission_id,log_date' });
-    const patch = { progress: mission.progress };
+    const patch = { progress: mission.progress, last_report_date: today };
     if (mission.progress >= 100) { patch.status = 'completed'; patch.finished_at = new Date().toISOString(); }
     await sb.from('missions').update(patch).eq('id', mission.dbId);
   } catch (e) { console.warn('dbLogProgress failed', e); }
@@ -732,7 +760,7 @@ async function dbLogProgress(mission){
 async function loadIlluminatorPosts(){
   if (!sb) return;
   try {
-    const { data: posts } = await sb.from('illuminator_posts').select('*').order('created_at', { ascending:false }).limit(30);
+    const { data: posts } = await sb.from('illuminator_posts').select('*').eq('public', true).order('created_at', { ascending:false }).limit(30);
     state.illumPosts = posts || [];
     const { data: mySupports } = await sb.from('illuminator_supports').select('post_id').eq('user_id', TG_ID);
     (mySupports||[]).forEach(r => { state.illumSupported[r.post_id] = true; });
@@ -756,15 +784,21 @@ async function dbToggleSupport(postId, nowSupported){
 // Generalized proof upload: every post is video, photo, or text, and every
 // post carries which mission it belongs to and whether it's the mission's
 // one main promise or a dated progress report on it.
+// A post always gets stored here — public or not — because the owner's own
+// profile mission-thread reads from this same table with no privacy filter.
+// Only the global Illuminator feed query filters to public:true (see
+// loadIlluminatorPosts). isPublic is the mission's own public flag
+// (state.missions[i].isPublic, mirrored from missions.public in the DB) —
+// resolve it via missionPublicFlag(missionId) before calling this.
 async function uploadIlluminatorProof(opts){
-  const { kind, blob, caption, missionType, missionTitle, missionId, isPromise, reportDay, reportTotalDays } = opts;
+  const { kind, blob, caption, missionType, missionTitle, missionId, isPromise, reportDay, reportTotalDays, isPublic } = opts;
   if (!sb) return null;
   try {
     const base = {
       user_id: TG_ID, author_name: state.profile.name, mission_type: missionType || null,
       mission_title: missionTitle || null, mission_id: missionId || null, is_promise: !!isPromise,
       report_day: reportDay || null, report_total_days: reportTotalDays || null,
-      caption: caption || '', kind
+      caption: caption || '', kind, public: !!isPublic
     };
     if (kind === 'text'){
       const { data: inserted } = await sb.from('illuminator_posts').insert({ ...base, text_body: caption || '' }).select('*').maybeSingle();
@@ -807,6 +841,8 @@ const state = {
   missionThreadFor: null,
   missionThreadPosts: [],
   missionThreadLoading: false,
+  illumFeedGroups: [],
+  feedMissionThreadFor: null,
   form: {
     habitName: null,
     habitCustom: '',
@@ -864,6 +900,8 @@ const state = {
   // this stays the honest zero state instead of silently showing a fake profile.
   profile: {
     name: '',
+    bio: '',
+    avatarUrl: '',
     joined: '',
     ls: { total: 0, byType: { 'Привычка':0, 'Результат':0, 'Аскеза':0 } },
     completedByType: { 'Привычка':0, 'Результат':0, 'Аскеза':0 },
@@ -933,7 +971,7 @@ const READY_TICKETS = [
   { id:'read20', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, goalDefault:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, reportDefault:{ru:'Фото прочитанных страниц',en:'Photo of the pages read'} },
   { id:'run5k21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, goalDefault:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, reportDefault:{ru:'Видео + Strava',en:'Video + Strava'} },
   { id:'checkup21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, goalDefault:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, reportDefault:{ru:'Фото/документ',en:'Photo / document'} },
-  { id:'nophone21', type:'Аскеза', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Аскеза',en:'AAA'}, tagline:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, goalDefault:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
+  { id:'nophone21', type:'Аскеза', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Аскеза',en:'Ascesa'}, tagline:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, goalDefault:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
 ];
 const PARTNER_MISSIONS = [
   { id:'p_reebok30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, brand:'Reebok', typeLine:{ru:'Партнёрская миссия · Reebok',en:'Partner mission · Reebok'}, tagline:{ru:'Совместный челлендж — сила через движение',en:'A joint challenge — strength through movement'}, goalDefault:{ru:'5 тренировок в неделю',en:'5 workouts a week'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'}, reward:{ru:'Скидка 20% на экипировку Reebok',en:'20% off Reebok gear'} },
@@ -943,10 +981,13 @@ const PARTNER_MISSIONS = [
 const GATEWAY_MISSIONS = [
   { id:'u_marina21', days:21, price:0, big:{ru:'21 день',en:'21 days'}, author:'Марина', participants:128, typeLine:{ru:'От пользователя · Привычка',en:'From a user · Habit'}, tagline:{ru:'«Бегать по утрам с командой»',en:'"Morning runs with the crew"'}, goalDefault:{ru:'Бегать по утрам 20 минут',en:'Run for 20 minutes every morning'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
   { id:'u_igor60', days:60, price:0, big:{ru:'60 дней',en:'60 days'}, author:'Игорь', participants:74, typeLine:{ru:'От пользователя · Результат',en:'From a user · Result'}, tagline:{ru:'«Запустить курс без прокрастинации»',en:'"Launch a course without procrastinating"'}, goalDefault:{ru:'1 час работы над курсом ежедневно',en:'1 hour of course work every day'}, reportDefault:{ru:'Скриншот прогресса',en:'Progress screenshot'} },
-  { id:'u_sveta30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, author:'Света', participants:203, typeLine:{ru:'От пользователя · Аскеза',en:'From a user · AAA'}, tagline:{ru:'«Месяц без соцсетей после 22:00»',en:'"A month off social media after 10pm"'}, goalDefault:{ru:'Не заходить в соцсети после 22:00',en:'No social media after 10pm'}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
+  { id:'u_sveta30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, author:'Света', participants:203, typeLine:{ru:'От пользователя · Аскеза',en:'From a user · Ascesa'}, tagline:{ru:'«Месяц без соцсетей после 22:00»',en:'"A month off social media after 10pm"'}, goalDefault:{ru:'Не заходить в соцсети после 22:00',en:'No social media after 10pm'}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
 ];
 const MENTORS_FREE = ['Космонавт', 'Баба Зина', 'Витя Убуд', 'Алина ДиЭнЭй'];
 const MENTORS_PAID = ['Ледокол', 'Мама Женя', 'Профессор', 'Товарищ Ли', 'DJ Midnight', 'Лиза Джаз'];
+// Only Cosmonaut is live for now — every other mentor renders locked
+// ("under construction") until their own persona/bot is built out.
+const MENTORS_ENABLED = ['Космонавт'];
 const MENTOR_INFO = {
   'Космонавт': {
     bio:{ru:'Голос ЦУЦ — говорит с тобой прямо из рубки, коротко и по делу, сухой юмор вместо пустой мотивации. Всегда на связи по радио, каким бы ни было время суток и каким бы ни был твой прогресс.', en:"The voice of Mission Control — talks to you straight from the cockpit, short and to the point, dry humor instead of empty pep talks. Always on the radio, whatever the hour and whatever your progress looks like."},
@@ -1220,7 +1261,7 @@ const ILLUMINATOR_POSTS = [
   { id:'v0', author:'Марина', letter:'М', type:'Привычка', missionTitle:{ru:'Бег по утрам перед работой',en:'Morning runs before work'}, isPromise:true, tag:{ru:'Привычка · обещание',en:'Habit · promise'}, body:{ru:'«Каждое утро — 20 минут бега перед работой, 90 дней.» Это стартовое видео-обещание.',en:'"Every morning — 20 minutes of running before work, 90 days." This is the starting video promise.'}, kind:{ru:'Главное видео-обещание',en:'Main promise video'}, duration:'0:38', grad:'linear-gradient(135deg,#232323,#050505)' },
   { id:'v1', author:'Марина', letter:'М', type:'Привычка', missionTitle:{ru:'Бег по утрам перед работой',en:'Morning runs before work'}, isPromise:false, day:12, totalDays:90, tag:{ru:'Привычка · день 12',en:'Habit · day 12'}, body:{ru:'«Каждое утро — 20 минут бега перед работой, 90 дней.» Сегодняшний чек-ин пройден.',en:'"Every morning — 20 minutes of running before work, 90 days." Today\'s check-in is done.'}, kind:{ru:'Видео-отчёт',en:'Video report'}, duration:'0:24', grad:'linear-gradient(135deg,#232323,#050505)' },
   { id:'v2', author:'Игорь', letter:'И', type:'Результат', missionTitle:{ru:'Запустить курс по фотографии',en:'Launch a photography course'}, isPromise:false, day:null, totalDays:null, milestone:'2/4', tag:{ru:'Результат · этап 2/4',en:'Result · milestone 2/4'}, body:{ru:'«Запустить курс по фотографии до конца года.» Веха пройдена, летим дальше.',en:'"Launch a photography course by the end of the year." Milestone reached, moving on.'}, kind:{ru:'Видео-отчёт',en:'Video report'}, duration:'0:41', grad:'linear-gradient(135deg,#1c1c1c,#3a2a12)' },
-  { id:'v3', author:'Света', letter:'С', type:'Аскеза', missionTitle:{ru:'Месяц без соцсетей после 22:00',en:'A month off social media after 10pm'}, isPromise:false, day:30, totalDays:30, tag:{ru:'Аскеза · день 30',en:'AAA · day 30'}, body:{ru:'«Месяц без соцсетей после 22:00.» Финальный отчёт — обещание выполнено полностью.',en:'"A month off social media after 10pm." Final report — the promise was fully kept.'}, kind:{ru:'Видео-финиш',en:'Video finish'}, duration:'0:57', grad:'linear-gradient(135deg,#141414,#0f2a2a)' },
+  { id:'v3', author:'Света', letter:'С', type:'Аскеза', missionTitle:{ru:'Месяц без соцсетей после 22:00',en:'A month off social media after 10pm'}, isPromise:false, day:30, totalDays:30, tag:{ru:'Аскеза · день 30',en:'Ascesa · day 30'}, body:{ru:'«Месяц без соцсетей после 22:00.» Финальный отчёт — обещание выполнено полностью.',en:'"A month off social media after 10pm." Final report — the promise was fully kept.'}, kind:{ru:'Видео-финиш',en:'Video finish'}, duration:'0:57', grad:'linear-gradient(135deg,#141414,#0f2a2a)' },
 ];
 
 // Which proof formats are acceptable for a checkpoint report, by mission type.
@@ -1253,6 +1294,35 @@ function togglePostVideo(id){
   render();
 }
 
+// The feed must not show a card per report — every report belongs under its
+// mission's one main/promise video, so the feed collapses to one card per
+// mission with a "N reports" count, and tapping it opens the full thread
+// (the mission's page, whichever user it belongs to).
+function feedGroupKey(p){
+  if(p.mission_id) return 'm:'+p.mission_id;
+  const title = p.mission_title || (p.missionTitle ? tf(p.missionTitle) : '');
+  const author = p.user_id || p.author_name || p.author || '';
+  return 'u:'+author+'|'+title;
+}
+function groupIlluminatorFeed(posts){
+  const groups = {}; const order = [];
+  posts.forEach(p => {
+    const key = feedGroupKey(p);
+    if(!groups[key]){ groups[key] = { key, posts:[], promise:null }; order.push(key); }
+    const g = groups[key];
+    g.posts.push(p);
+    if((p.isPromise || p.is_promise) && !g.promise) g.promise = p;
+  });
+  return order.map(key => {
+    const g = groups[key];
+    return { key: g.key, rep: g.promise || g.posts[0], count: g.posts.length, posts: g.posts };
+  });
+}
+function openFeedMissionThread(i){
+  state.feedMissionThreadFor = i;
+  go('feedMissionThread');
+}
+
 // A small always-visible badge stating exactly what a post is: the mission's
 // one main promise video, or a dated/staged progress report on it — so
 // tapping into any card in the feed never leaves that ambiguous.
@@ -1260,7 +1330,7 @@ function postContextBadge(p){
   const title = p.missionTitle ? tf(p.missionTitle) : (p.mission_title || '');
   const kindWord = { video: tr('видео-обещание','promise video'), photo: tr('фото-обещание','promise photo'), text: tr('текстовое обещание','text promise') }[p.kind] || tr('видео-обещание','promise video');
   if(p.isPromise || p.is_promise){
-    return `<div class="post-context promise">🎯 ${tr('Главное','Main')} ${kindWord}${title?' · '+title:''}</div>`;
+    return `<div class="post-context promise">${icon('target')} ${tr('Главное','Main')} ${kindWord}${title?' · '+title:''}</div>`;
   }
   const day = p.day ?? p.report_day, totalDays = p.totalDays ?? p.report_total_days, milestone = p.milestone;
   let where = '';
@@ -1270,7 +1340,14 @@ function postContextBadge(p){
   return `<div class="post-context report">📋 ${tr('Отчёт','Report')} · ${where}${title?' · '+title:''}</div>`;
 }
 
-function postCard(p){
+// groupIndex, when given, points into state.illumFeedGroups — the card then
+// renders a "N reports" link into that mission's full thread instead of
+// showing every report as its own card in the feed.
+function feedThreadLink(groupIndex, count){
+  if(groupIndex==null || count<=1) return '';
+  return `<button class="btn small ghost" onclick="openFeedMissionThread(${groupIndex})">${tr(`Все отчёты (${count}) →`,`All reports (${count}) →`)}</button>`;
+}
+function postCard(p, groupIndex, count){
   if(p.video_url || p.photo_url || (p.kind==='text' && p.text_body!=null)){
     const supported = !!state.illumSupported[p.id];
     const initial = ((p.author_name||'?').trim().charAt(0) || '?').toUpperCase();
@@ -1287,6 +1364,7 @@ function postCard(p){
       ${(p.caption || p.text_body) ? `<div class="post-body">${p.text_body || p.caption}</div>` : ''}
       <div class="post-actions">
         <button class="btn small ${supported?'ghost':''}" onclick="togglePostSupport('${p.id}')">${supported ? tr('✓ Поддержано','✓ Supported') : tr('Поддержать','Support')}${p.support_count?` · ${p.support_count}`:''}</button>
+        ${feedThreadLink(groupIndex, count)}
       </div>
     </div>`;
   }
@@ -1304,6 +1382,7 @@ function postCard(p){
     <div class="post-actions">
       <button class="btn small ${state.illumSupported[p.id]?'ghost':''}" onclick="supportPost('${p.id}')">${state.illumSupported[p.id] ? tr('✓ Поддержано','✓ Supported') : tr('Поддержать','Support')}</button>
       <button class="btn small ghost" onclick="go('typeSelect')">${tr('Повторить эту цель','Repeat this goal')}</button>
+      ${feedThreadLink(groupIndex, count)}
     </div>
   </div>`;
 }
@@ -1452,7 +1531,7 @@ const DOPUSK_RANKS = [
 // Иконки ранга нарочно смешивают спорт, военную/командную атрибутику и космос —
 // допуск это не только «полёт», а общий трек результата и дисциплины.
 const RANK_ICONS = {
-  'Кадет':'🎽', 'Пилот':'🚀', 'Командир экипажа':'🎖️', 'Ветеран орбиты':'🥇', 'Легенда Тяги':'👑'
+  'Кадет':'chevron', 'Пилот':'rocket', 'Командир экипажа':'medal-star', 'Ветеран орбиты':'medal-1st', 'Легенда Тяги':'crown'
 };
 // name above stays the internal RU key (used by RANK_ICONS and badge conditions);
 // rankLabel() is the display-facing translation.
@@ -1489,33 +1568,33 @@ function computeDopuskRank(completed){
 // Ачивки нарочно смешивают четыре мира бренда: космос, спорт, здоровье/тело и
 // продуктивность/соревнование — ни один блок иконок не должен читаться как «просто ракеты».
 const BADGES = [
-  { id:'first_launch', icon:'🚀', name:{ru:'Первый запуск',en:'First Launch'}, desc:{ru:'Запустил свою самую первую миссию — прошёл точку невозврата.',en:"Launched your very first mission — passed the point of no return."},
+  { id:'first_launch', icon:'rocket', name:{ru:'Первый запуск',en:'First Launch'}, desc:{ru:'Запустил свою самую первую миссию — прошёл точку невозврата.',en:"Launched your very first mission — passed the point of no return."},
     check:p=>({unlocked: driveTotal(p)>=1}) },
-  { id:'first_landing', icon:'🏁', name:{ru:'Финишная черта',en:'Finish Line'}, desc:{ru:'Завершил первую миссию целиком — Допуск пошёл в рост.',en:"Completed your first mission in full — your Clearance rank starts climbing."},
+  { id:'first_landing', icon:'flag', name:{ru:'Финишная черта',en:'Finish Line'}, desc:{ru:'Завершил первую миссию целиком — Допуск пошёл в рост.',en:"Completed your first mission in full — your Clearance rank starts climbing."},
     check:p=>({unlocked: dopuskTotal(p)>=1}) },
-  { id:'crew_commander', icon:'🎖️', name:{ru:'Командир экипажа',en:'Crew Commander'}, desc:{ru:'3 завершённые миссии — допуск подтверждён официально.',en:"3 completed missions — your clearance is now official."},
+  { id:'crew_commander', icon:'medal-star', name:{ru:'Командир экипажа',en:'Crew Commander'}, desc:{ru:'3 завершённые миссии — допуск подтверждён официально.',en:"3 completed missions — your clearance is now official."},
     check:p=>({unlocked: dopuskTotal(p)>=3, progress:Math.min(dopuskTotal(p),3)+'/3'}) },
-  { id:'orbit_veteran', icon:'🥇', name:{ru:'Ветеран орбиты',en:'Orbit Veteran'}, desc:{ru:'6 завершённых миссий — держишь слово системно, а не от случая к случаю.',en:"6 completed missions — you keep your word consistently, not just once in a while."},
+  { id:'orbit_veteran', icon:'medal-1st', name:{ru:'Ветеран орбиты',en:'Orbit Veteran'}, desc:{ru:'6 завершённых миссий — держишь слово системно, а не от случая к случаю.',en:"6 completed missions — you keep your word consistently, not just once in a while."},
     check:p=>({unlocked: dopuskTotal(p)>=6, progress:Math.min(dopuskTotal(p),6)+'/6'}) },
-  { id:'tyaga_legend', icon:'👑', name:{ru:'Легенда Тяги',en:'Tyaga Legend'}, desc:{ru:'10 завершённых миссий — высший ранг Допуска на платформе.',en:"10 completed missions — the highest Clearance rank on the platform."},
+  { id:'tyaga_legend', icon:'crown', name:{ru:'Легенда Тяги',en:'Tyaga Legend'}, desc:{ru:'10 завершённых миссий — высший ранг Допуска на платформе.',en:"10 completed missions — the highest Clearance rank on the platform."},
     check:p=>({unlocked: dopuskTotal(p)>=10, progress:Math.min(dopuskTotal(p),10)+'/10'}) },
-  { id:'marathoner', icon:'🏃', name:{ru:'Марафонец',en:'Marathoner'}, desc:{ru:'2+ завершённые Привычки — тело работает на автопилоте, дисциплина стала рефлексом.',en:"2+ completed Habits — your body runs on autopilot, discipline has become reflex."},
+  { id:'marathoner', icon:'runner', name:{ru:'Марафонец',en:'Marathoner'}, desc:{ru:'2+ завершённые Привычки — тело работает на автопилоте, дисциплина стала рефлексом.',en:"2+ completed Habits — your body runs on autopilot, discipline has become reflex."},
     check:p=>({unlocked: (p.completedByType['Привычка']||0)>=2, progress:Math.min(p.completedByType['Привычка']||0,2)+'/2'}) },
-  { id:'result_athlete', icon:'🏋️', name:{ru:'Атлет Результата',en:'Results Athlete'}, desc:{ru:'Довёл до конца хотя бы одну цель типа «Результат» — не процесс ради процесса, а конкретный итог.',en:"Saw at least one Result-type goal through to the end — not process for its own sake, but a concrete outcome."},
+  { id:'result_athlete', icon:'target', name:{ru:'Атлет Результата',en:'Results Athlete'}, desc:{ru:'Довёл до конца хотя бы одну цель типа «Результат» — не процесс ради процесса, а конкретный итог.',en:"Saw at least one Result-type goal through to the end — not process for its own sake, but a concrete outcome."},
     check:p=>({unlocked: (p.completedByType['Результат']||0)>=1}) },
-  { id:'iron_will', icon:'🛡️', name:{ru:'Железная воля',en:'Iron Will'}, desc:{ru:'Выдержал полную Аскезу — отказался от привычки и не сорвался.',en:"Held a full AAA — willingly gave up a habit and didn't relapse."},
+  { id:'iron_will', icon:'shield', name:{ru:'Железная воля',en:'Iron Will'}, desc:{ru:'Выдержал полную Аскезу — отказался от привычки и не сорвался.',en:"Held a full Ascesa — willingly gave up a habit and didn't relapse."},
     check:p=>({unlocked: (p.completedByType['Аскеза']||0)>=1}) },
-  { id:'fleet5', icon:'🔥', name:{ru:'Флот',en:'Fleet'}, desc:{ru:'5 когда-либо запущенных миссий, независимо от исхода — награда за саму инициативу.',en:"5 missions ever launched, regardless of outcome — a reward for the initiative itself."},
+  { id:'fleet5', icon:'flame', name:{ru:'Флот',en:'Fleet'}, desc:{ru:'5 когда-либо запущенных миссий, независимо от исхода — награда за саму инициативу.',en:"5 missions ever launched, regardless of outcome — a reward for the initiative itself."},
     check:p=>({unlocked: driveTotal(p)>=5, progress:Math.min(driveTotal(p),5)+'/5'}) },
-  { id:'first_cosmic', icon:'⚡', name:{ru:'Первая космическая',en:'Escape Velocity'}, desc:{ru:'Дошёл до статуса «Первая космическая скорость» хотя бы в одной миссии — личный рекорд темпа и эффективности.',en:"Reached “Escape Velocity” status in at least one mission — a personal record for pace and efficiency."},
+  { id:'first_cosmic', icon:'bolt', name:{ru:'Первая космическая',en:'Escape Velocity'}, desc:{ru:'Дошёл до статуса «Первая космическая скорость» хотя бы в одной миссии — личный рекорд темпа и эффективности.',en:"Reached “Escape Velocity” status in at least one mission — a personal record for pace and efficiency."},
     check:p=>({unlocked: p.completed.some(m=>m.firstCosmic)}) },
-  { id:'competitive_spirit', icon:'🏆', name:{ru:'Дух соревнования',en:'Competitive Spirit'}, desc:{ru:'Поддержал 5+ чужих миссий в Иллюминаторе — соревнование, которое поднимает всех, а не только тебя.',en:"Supported 5+ other people's missions in the Viewport — competition that lifts everyone, not just you."},
+  { id:'competitive_spirit', icon:'trophy', name:{ru:'Дух соревнования',en:'Competitive Spirit'}, desc:{ru:'Поддержал 5+ чужих миссий в Иллюминаторе — соревнование, которое поднимает всех, а не только тебя.',en:"Supported 5+ other people's missions in the Viewport — competition that lifts everyone, not just you."},
     check:p=>({unlocked: p.support.given>=5, progress:Math.min(p.support.given,5)+'/5'}) },
-  { id:'inspirer', icon:'🤝', name:{ru:'Вдохновитель',en:'Inspirer'}, desc:{ru:'Твою цель скопировали и запустили 5+ человек в «Экипаже».',en:"5+ people copied and launched your goal in the Crew."},
+  { id:'inspirer', icon:'handshake', name:{ru:'Вдохновитель',en:'Inspirer'}, desc:{ru:'Твою цель скопировали и запустили 5+ человек в «Экипаже».',en:"5+ people copied and launched your goal in the Crew."},
     check:p=>({unlocked: p.crew.inspiredCount>=5, progress:Math.min(p.crew.inspiredCount,5)+'/5'}) },
-  { id:'streak30', icon:'💪', name:{ru:'Стойкий',en:'Steadfast'}, desc:{ru:'30 дней подряд без единого пропущенного чек-ина.',en:"30 days in a row without a single missed check-in."},
+  { id:'streak30', icon:'flex', name:{ru:'Стойкий',en:'Steadfast'}, desc:{ru:'30 дней подряд без единого пропущенного чек-ина.',en:"30 days in a row without a single missed check-in."},
     check:p=>({unlocked: p.streak.longest>=30, progress:Math.min(p.streak.longest,30)+'/30'}) },
-  { id:'live_link', icon:'🎥', name:{ru:'Живая связь',en:'Live Link'}, desc:{ru:'Подтвердил обещание живым видео на связи — высший уровень вовлечённости отчёта.',en:"Confirmed a promise with a live video call — the highest level of report engagement."},
+  { id:'live_link', icon:'camera', name:{ru:'Живая связь',en:'Live Link'}, desc:{ru:'Подтвердил обещание живым видео на связи — высший уровень вовлечённости отчёта.',en:"Confirmed a promise with a live video call — the highest level of report engagement."},
     check:p=>({unlocked:false}) },
 ];
 
@@ -1524,7 +1603,7 @@ function showBadgeInfo(id){ state.badgeInfoFor = (state.badgeInfoFor===id ? null
 function badgeCard(b, p){
   const res = b.check(p);
   return `<div class="badge2 ${res.unlocked?'unlocked':'locked'} ${state.badgeInfoFor===b.id?'active':''}" onclick="showBadgeInfo('${b.id}')">
-    <div class="badge2-icon">${b.icon}</div>
+    <div class="badge2-icon">${icon(b.icon)}</div>
     <div class="badge2-name">${tf(b.name)}</div>
     ${!res.unlocked && res.progress ? `<div class="badge2-progress">${res.progress}</div>` : ''}
   </div>`;
@@ -1537,7 +1616,7 @@ function badgeInfoBox(){
   const res = b.check(state.profile);
   return `<div class="card" style="margin-top:10px;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-      <div style="font-size:22px;">${b.icon}</div>
+      <div class="icon" style="width:22px;height:22px;">${ICONS[b.icon]||''}</div>
       <div style="font-weight:700;">${tf(b.name)}</div>
     </div>
     <div class="hint" style="margin:0 0 6px;">${tf(b.desc)}</div>
@@ -1643,7 +1722,7 @@ const SCREENS = {
         ${byType('Привычка').map(ticketCard).join('')}
         <h3 style="margin:18px 0 6px;">${tr('Результат','Result')}</h3>
         ${byType('Результат').map(ticketCard).join('')}
-        <h3 style="margin:18px 0 6px;">${tr('Аскеза','AAA')}</h3>
+        <h3 style="margin:18px 0 6px;">${tr('Аскеза','Ascesa')}</h3>
         ${byType('Аскеза').map(ticketCard).join('')}
       ` : tab==='radar' ? `
         <h2 style="margin-top:4px;">${tr('Зона Радара','Radar Zone')}</h2>
@@ -1664,15 +1743,15 @@ const SCREENS = {
       <div class="stack" style="margin-top:14px;">
         <div class="card" style="cursor:pointer;" onclick="go('habitBasics')">
           <div style="font-weight:700;font-size:15px;">${tr('Привычка','Habit')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily repetitive actions (build a habit)')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily Repetitive Actions<br>Build a Habit')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('rGoal')">
           <div style="font-weight:700;font-size:15px;">${tr('Результат','Result')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach some point in the future (achieve a specific result)')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach Some Point in the Future<br>Achieve a Specific Result')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('aGoal')">
-          <div style="font-weight:700;font-size:15px;">${tr('Аскеза','AAA')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism (willingly give up a habit)')}</div>
+          <div style="font-weight:700;font-size:15px;">${tr('Аскеза','Ascesa')}</div>
+          <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism<br>Willingly Give Up a Habit')}</div>
         </div>
       </div>
     `);
@@ -1918,16 +1997,38 @@ const SCREENS = {
   checkin(){
     const m = state.missions[state.checkinMissionIndex];
     const dayNumber = m ? (m.reportCount||0)+1 : 1;
+    const today = new Date().toISOString().slice(0,10);
+    const alreadyToday = m && m.lastReportDate === today;
     return screenShell(`
       <div class="eyebrow">${tr('Ежедневный чек-ин','Daily check-in')}</div>
       <h1>${tr('Как прошла миссия сегодня?','How did today\'s mission go?')}</h1>
-      <p class="hint" style="margin:-4px 0 4px;">${tr(`День ${dayNumber} — пришли видео, фото или текст в подтверждение.`, `Day ${dayNumber} — send a video, photo, or text as proof.`)}</p>
-      <div class="stack" style="margin-top:16px;">
-        <button class="btn primary block" onclick="startDailyReport(state.checkinMissionIndex)">${tr('Сделал','Did it')}</button>
-        <button class="btn ghost block" onclick="go('checkinNo',{replace:true})">${tr('Пропустил','Missed it')}</button>
-      </div>
+      ${alreadyToday ? `
+        <p class="hint" style="margin:-4px 0 4px;">${tr('Отчёт за сегодня уже отправлен — один отчёт в день. Возвращайся завтра.','Today\'s report is already in — one report a day. Come back tomorrow.')}</p>
+        <button class="btn primary block" style="margin-top:16px;" onclick="go('home',{replace:true})">${tr('Ок','OK')}</button>
+      ` : `
+        <p class="hint" style="margin:-4px 0 4px;">${tr(`День ${dayNumber}${m&&m.totalDays?' из '+m.totalDays:''} — пришли видео, фото или текст в подтверждение.`, `Day ${dayNumber}${m&&m.totalDays?' of '+m.totalDays:''} — send a video, photo, or text as proof.`)}</p>
+        <div class="stack" style="margin-top:16px;">
+          <button class="btn primary block" onclick="startDailyReport(state.checkinMissionIndex)">${tr('Сделал','Did it')}</button>
+          <button class="btn ghost block" onclick="go('checkinNo',{replace:true})">${tr('Пропустил','Missed it')}</button>
+        </div>
+      `}
       ${m ? `<button class="btn ghost block" style="margin-top:20px;font-size:12.5px;" onclick="openMissionThread(state.checkinMissionIndex)">${tr('Смотреть отчёты по миссии','View mission reports')}</button>` : ''}
     `, {step:'D2'});
+  },
+
+  missionComplete(){
+    const m = state.missions[state.checkinMissionIndex];
+    return screenShell(`
+      <h1>${tr('Поздравляем!','Congratulations!')}</h1>
+      <div class="cosmo-msg">
+        <div class="who">${tr('Космонавт','Cosmonaut')}</div>${tr(`Пшшщщщ... Миссия «${m?tf(m.title):''}» завершена — все ${m?m.totalDays:''} дней пройдены. Экипаж гордится тобой. Приём.`, `Pshhhh... Mission "${m?tf(m.title):''}" is complete — all ${m?m.totalDays:''} days done. The crew is proud of you. Over.`)}</div>
+      <p class="hint" style="margin-top:10px;">${tr('Финальный бонус Л.С. начислен, достижение засчитано.','Final Flight Hours bonus awarded, achievement recorded.')}</p>
+      <div class="stack" style="margin-top:16px;">
+        <button class="btn primary block" onclick="extendMission(state.checkinMissionIndex)">${tr('Продлить и пойти дальше','Extend and keep going')}</button>
+        <button class="btn ghost block" onclick="go('home',{replace:true})">${tr('Завершить здесь','Finish here')}</button>
+      </div>
+      <button class="btn ghost block" style="margin-top:20px;font-size:12.5px;" onclick="openMissionThread(state.checkinMissionIndex)">${tr('Смотреть все отчёты по миссии','View all mission reports')}</button>
+    `, {back:false, step:'D4'});
   },
 
   checkinYes(){
@@ -1983,6 +2084,73 @@ const SCREENS = {
     `, {step: tr('Отчёты','Reports')});
   },
 
+  // The generic version of missionThread(): works for ANY mission in the
+  // Illuminator feed (not just the viewer's own), grouped by mission_id/author
+  // so tapping "All reports" on a feed card always lands here — the main
+  // promise video up top, every report threaded underneath, one page per
+  // mission, exactly what the mission's own user would see on their page.
+  feedMissionThread(){
+    const g = state.illumFeedGroups[state.feedMissionThreadFor];
+    if (!g) return screenShell(`<div class="placeholder-box">${tr('Миссия не найдена.','Mission not found.')}</div>`, {step:'thread'});
+    const rep = g.rep;
+    const authorName = rep.author_name || rep.author || tr('Пилот','Pilot');
+    const title = rep.mission_title || (rep.missionTitle ? tf(rep.missionTitle) : tr('Миссия','Mission'));
+    const sorted = [...g.posts].sort((a,b) => {
+      const aPromise = a.isPromise || a.is_promise, bPromise = b.isPromise || b.is_promise;
+      if (aPromise !== bPromise) return aPromise ? -1 : 1;
+      const aDay = a.day ?? a.report_day ?? 0, bDay = b.day ?? b.report_day ?? 0;
+      return aDay - bDay;
+    });
+    const postRow = (post) => {
+      const isPromise = post.isPromise || post.is_promise;
+      const day = post.day ?? post.report_day;
+      const label = isPromise ? tr('Обещание','Promise') : (day ? tr(`День ${day}`,`Day ${day}`) : tr('Отчёт','Report'));
+      const when = post.created_at ? new Date(post.created_at).toLocaleDateString(state.lang==='en'?'en-US':'ru-RU') : '';
+      const media = post.video_url
+        ? `<video src="${post.video_url}" controls playsinline style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;background:#000;"></video>`
+        : post.photo_url
+          ? `<img src="${post.photo_url}" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;">`
+          : `<p class="lead" style="margin-top:6px;">${post.text_body || post.caption || ''}</p>`;
+      return `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="mtop"><span class="mtitle">${label}</span><span class="mtype">${when}</span></div>
+          ${media}
+          ${post.caption ? `<p class="hint" style="margin-top:6px;">${post.caption}</p>` : ''}
+        </div>
+      `;
+    };
+    return screenShell(`
+      <div class="eyebrow">${authorName}</div>
+      <h1>${title}</h1>
+      <p class="hint" style="margin:-4px 0 14px;">${tr('Обещание и все отчёты по этой миссии — один за другим, с первого дня.','The promise and every report on this mission — one by one, from day one.')}</p>
+      ${sorted.map(postRow).join('')}
+    `, {step: tr('Отчёты','Reports')});
+  },
+
+  profileEdit(){
+    const d = state.profileEditDraft || { name:'', bio:'', avatarUrl:'' };
+    const preview = d.avatarPreview || d.avatarUrl;
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Редактировать профиль','Edit profile')}</h1>
+      <div style="display:flex;align-items:center;gap:14px;margin:16px 0;">
+        ${preview ? `<div class="avatar" style="width:64px;height:64px;background-image:url('${preview}');background-size:cover;background-position:center;"></div>` : `<div class="avatar" style="width:64px;height:64px;">${(d.name&&d.name.trim()?d.name.trim()[0]:'?')}</div>`}
+        <div>
+          <input type="file" accept="image/*" onchange="handleAvatarSelect(this)" style="display:block;color:var(--text-dim);font-size:12px;">
+          <p class="hint" style="margin:4px 0 0;">${tr('Фото профиля','Profile photo')}</p>
+        </div>
+      </div>
+      <p class="hint" style="margin:0 0 4px;">${tr('Имя','Name')}</p>
+      <input type="text" value="${d.name}" placeholder="${tr('Твоё имя','Your name')}" oninput="state.profileEditDraft.name=this.value" style="width:100%;margin-bottom:14px;">
+      <p class="hint" style="margin:0 0 4px;">${tr('О себе','About you')}</p>
+      <textarea rows="4" placeholder="${tr('Напиши немного о себе','Write a little about yourself')}" oninput="state.profileEditDraft.bio=this.value">${d.bio}</textarea>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn ghost block" onclick="cancelProfileEdit()">${tr('Отмена','Cancel')}</button>
+        <button class="btn primary block" onclick="saveProfileEdit()">${tr('Сохранить','Save')}</button>
+      </div>
+    `, {step: tr('Профиль','Profile')});
+  },
+
   profile(){
     state.showNav = true;
     const open = state.form.profileExpanded;
@@ -1991,21 +2159,23 @@ const SCREENS = {
     const totalDrive = driveTotal(p);
     const rank = computeDopuskRank(totalCompleted);
     const types = ['Привычка','Результат','Аскеза'];
-    const TYPE_ICON = { 'Привычка':'🏃', 'Результат':'🎯', 'Аскеза':'🛡️' };
+    const TYPE_ICON = { 'Привычка':'runner', 'Результат':'target', 'Аскеза':'shield' };
     let fleetIcons = types.flatMap(t => Array.from({length:p.launchedByType[t]||0}).map(()=>TYPE_ICON[t]));
-    const fleetExtra = fleetIcons.length > 18 ? ` +${fleetIcons.length-18}` : '';
-    fleetIcons = fleetIcons.slice(0,18).join(' ');
+    const fleetExtra = fleetIcons.length > 18 ? `<span class="fleet-extra">+${fleetIcons.length-18}</span>` : '';
+    fleetIcons = fleetIcons.slice(0,18).map(name=>icon(name)).join('');
 
     const displayName = (p.name && p.name.trim()) || tr('Гость','Guest');
     return `
       <div class="eyebrow">${tr('Профиль','Profile')}</div>
       <div class="profile-head">
-        <div class="avatar">${displayName[0]}</div>
+        ${p.avatarUrl ? `<div class="avatar" style="background-image:url('${p.avatarUrl}');background-size:cover;background-position:center;"></div>` : `<div class="avatar">${displayName[0]}</div>`}
         <div>
           <div style="font-weight:700;">${displayName}</div>
           <div class="hint">${p.joined ? tr('в Тяге с','on Tyaga since')+' '+dateLabel(p.joined)+' · ' : ''}${p.followers} ${tr('болельщиков','followers')}</div>
         </div>
       </div>
+      ${p.bio ? `<p class="lead" style="margin:8px 0 4px;">${p.bio}</p>` : ''}
+      <button class="btn ghost block" style="margin:8px 0 4px;font-size:12.5px;" onclick="openProfileEdit()">${tr('Редактировать профиль','Edit profile')}</button>
 
       <div class="stat-strip" onclick="toggleProfile()">
         <div class="cell"><div class="val">${p.ls.total.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Л.С.','FH')}</div></div>
@@ -2017,7 +2187,7 @@ const SCREENS = {
         ${DOPUSK_RANKS.map((r,i)=>`
           <div class="rl-step ${i<=rank.idx?'done':''} ${i===rank.idx?'current':''}">
             <div class="rl-dot"></div>
-            <div class="rl-icon">${RANK_ICONS[r.name]}</div>
+            <div class="rl-icon">${icon(RANK_ICONS[r.name])}</div>
             <div class="rl-label">${rankLabel(r.name)}</div>
           </div>
         `).join('')}
@@ -2035,7 +2205,7 @@ const SCREENS = {
       </div>
 
       <h2>${tr('Дистанция','Distance')}</h2>
-      <p class="hint" style="margin:-2px 0 8px;">${tr('Каждая иконка — миссия, которую ты когда-либо запускал (🏃 привычка, 🎯 результат, 🛡️ аскеза), независимо от исхода.','Every icon is a mission you\'ve ever launched (🏃 habit, 🎯 result, 🛡️ vow), regardless of outcome.')}</p>
+      <p class="hint" style="margin:-2px 0 8px;">${tr('Каждая иконка — миссия, которую ты когда-либо запускал (привычка, результат, аскеза), независимо от исхода.','Every icon is a mission you\'ve ever launched (habit, result, ascesa), regardless of outcome.')}</p>
       <div class="fleet-row">${fleetIcons}${fleetExtra}</div>
 
       <h2 style="margin-top:20px;">${tr('Ачивки','Achievements')}</h2>
@@ -2050,12 +2220,23 @@ const SCREENS = {
         `).join('')
       }
 
+      <h2 style="margin-top:20px;">${tr('Видео по миссиям','Mission videos')}</h2>
+      <p class="hint" style="margin:-2px 0 8px;">${tr('Обещание и все отчёты по каждой активной миссии.','The promise and every report on each active mission.')}</p>
+      ${state.missions.length===0 ? `<div class="placeholder-box">${tr('Пока нет активных миссий.','No active missions yet.')}</div>` :
+        state.missions.map((m,i)=>`
+          <div class="mission-card" onclick="openMissionThread(${i})">
+            <div class="mtop"><span class="mtitle">${tf(m.title)}</span><span class="mtype">${typeLabel(m.type)}</span></div>
+            <div class="hint">${tr('День','Day')} ${(m.reportCount||0)+1} · ${tr('смотреть видео','watch videos')}</div>
+          </div>
+        `).join('')
+      }
+
       <h2 style="margin-top:20px;">${tr('Завершённые миссии','Completed missions')}</h2>
       ${p.completed.length===0 ? `<div class="placeholder-box">${tr('Пока нет завершённых — первая на подходе.','No completions yet — the first one is on its way.')}</div>` :
         p.completed.map(m=>`
           <div class="completed-card">
             <div class="cc-top"><span class="cc-title">${tf(m.title)}</span><span class="cc-type">${typeLabel(m.type)}</span></div>
-            <div class="cc-meta">${m.days} ${tr('дней','days')} · ${tf(m.report)} · ${tr('завершено','completed')} ${dateLabel(m.finished)}${m.firstCosmic ? ' · <span class="cc-cosmic">⚡ '+tr('Первая космическая','Escape Velocity')+'</span>' : ''}</div>
+            <div class="cc-meta">${m.days} ${tr('дней','days')} · ${tf(m.report)} · ${tr('завершено','completed')} ${dateLabel(m.finished)}${m.firstCosmic ? ' · <span class="cc-cosmic">'+icon('bolt')+' '+tr('Первая космическая','Escape Velocity')+'</span>' : ''}</div>
           </div>
         `).join('')
       }
@@ -2072,7 +2253,13 @@ const SCREENS = {
       <h1>${tr('Лента','Feed')}</h1>
       <p class="hint" style="margin:-4px 0 14px;">${tr('Видео-обещания и отчёты других пилотов — вживую, без монтажа. Показываем в первую очередь то, что близко твоим целям.','Video promises and reports from other pilots — live, unedited. Shown with what\'s closest to your own goals first.')}</p>
       <button class="btn ghost block" style="margin-bottom:14px;" onclick="go('tickets')">${tr('Выбрать цель и записать своё обещание','Choose a goal and record your own promise')}</button>
-      ${recommendedIlluminatorPosts().map(postCard).join('')}
+      ${(() => {
+        // One card per mission, not one per report: every report threads under
+        // its mission's main/promise video, so the feed shows that video (or
+        // one representative report) with a count, never a wall of reports.
+        state.illumFeedGroups = groupIlluminatorFeed(recommendedIlluminatorPosts());
+        return state.illumFeedGroups.map((g,i) => postCard(g.rep, i, g.count)).join('');
+      })()}
       <p class="hint">${tr('Все посты прошли модерацию перед публикацией.','All posts are moderated before publishing.')}</p>
     `;
   },
@@ -2424,7 +2611,7 @@ const SCREENS = {
 
   aGoal(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 2 · Аскеза','Step 2 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 2 · Аскеза','Step 2 · Ascesa')}</div>
       <h1>${tr('От чего отказываешься?','What are you giving up?')}</h1>
       <textarea rows="3" placeholder="${tr('Например: сладкое, соцсети после 22:00, алкоголь','E.g.: sweets, social media after 10pm, alcohol')}" oninput="state.askeza.goal=this.value; syncA()">${state.askeza.goal}</textarea>
       <h2>${tr('Тематика ','Category ')}<span class="hint" style="display:inline;">${tr('(необязательно)','(optional)')}</span></h2>
@@ -2436,7 +2623,7 @@ const SCREENS = {
 
   aMeaning(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 3 · Аскеза','Step 3 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 3 · Аскеза','Step 3 · Ascesa')}</div>
       <h1>${tr('Почему это важно для тебя?','Why does this matter to you?')}</h1>
       <p class="lead">${tr('Это личное решение — наставник тут не давит и не разбирает твой тип поддержки, просто держит счётчик рядом.','This one\'s personal — the mentor doesn\'t push or dig into your support style here, just keeps the count alongside you.')}</p>
       <p class="hint" style="margin:-8px 0 10px;">${tr('Что изменится, когда откажешься от этого? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you give this up? Will you respect or love yourself more? Why?')}</p>
@@ -2449,7 +2636,7 @@ const SCREENS = {
   aDuration(){
     const minDate = new Date(Date.now()+21*86400000).toISOString().slice(0,10);
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 4 · Аскеза','Step 4 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 4 · Аскеза','Step 4 · Ascesa')}</div>
       <h1>${tr('На какой срок?','For how long?')}</h1>
       <p class="lead">${tr('Минимум — 21 день, дальше решаешь сам.','Minimum is 21 days, after that it\'s up to you.')}</p>
       <div class="row-gap">${ASKEZA_DURATIONS.map(d=>chip(d+' '+dayWord(d), state.askeza.duration&&state.askeza.duration.days===d, `setAskezaDuration(${d})`)).join('')}
@@ -2467,7 +2654,7 @@ const SCREENS = {
     const habit = state.askeza.goal || '…';
     const dur = askezaDurationLabel();
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 5 · Аскеза','Step 5 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 5 · Аскеза','Step 5 · Ascesa')}</div>
       <h1>${tr('Скажи это на камеру','Say it to the camera')}</h1>
       <div class="script-box">${tr('Скажи что-то вроде: «Меня зовут ','Say something like: “My name is ')}<b>${(state.profile.name && state.profile.name.trim()) || tr(USER_NAME,USER_NAME_EN)}</b>${tr(', я отказываюсь от «',', I\'m giving up “')}<b>${habit}</b>${tr('» на ','” for ')}<b>${dur}</b>, ${tr('потому что','because')} ${state.askeza.meaning?state.askeza.meaning:'…'}».</div>
       <p class="hint" style="margin-bottom:12px;">${tr('По нашей системе — даже обращение к самому себе на видео заметно повышает шанс дойти до конца. Это не для нас, это для тебя — можешь пересмотреть в трудный момент.','Our data shows that even talking to yourself on video noticeably improves your odds of following through. This isn\'t for us, it\'s for you — you can rewatch it in a hard moment.')}</p>
@@ -2489,9 +2676,9 @@ const SCREENS = {
 
   aMentor(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 6 · Аскеза','Step 6 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 6 · Аскеза','Step 6 · Ascesa')}</div>
       <h1>${tr('Кто будет рядом?','Who\'ll be by your side?')}</h1>
-      <p class="lead">${tr('Космонавт — бесплатно всегда. У Аскезы нет платного тарифа, поэтому остальные наставники — только платная докупка, без бесплатной тройки.','Cosmonaut is always free. AAA has no paid plan, so the other mentors are paid add-ons only — no free trio.')}</p>
+      <p class="lead">${tr('Космонавт — бесплатно всегда. У Аскезы нет платного тарифа, поэтому остальные наставники — только платная докупка, без бесплатной тройки.','Cosmonaut is always free. Ascesa has no paid plan, so the other mentors are paid add-ons only — no free trio.')}</p>
       <h2>${tr('Бесплатный','Free')}</h2>
       <div class="mentor-scroll">${mentorCard('Космонавт',0,state.askeza)}</div>
       <h2>${tr('Платные · 500₽','Paid · 500₽')}</h2>
@@ -2504,9 +2691,9 @@ const SCREENS = {
 
   aBoosts(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 7 · Аскеза','Step 7 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 7 · Аскеза','Step 7 · Ascesa')}</div>
       <h1>${tr('Что подключить?','What should we turn on?')}</h1>
-      <p class="lead">${tr('Аскеза бесплатна в основе — здесь только докупки.','AAA is free at its core — these are optional add-ons only.')}</p>
+      <p class="lead">${tr('Аскеза бесплатна в основе — здесь только докупки.','Ascesa is free at its core — these are optional add-ons only.')}</p>
       <div class="toggle-row">
         <div><div class="t-title">${tr('Позвать свидетеля','Invite a witness')}</div><div class="t-desc">${tr('Конкретный человек, не публичная лента · +300₽ за каждого','A specific person, not a public feed · +300₽ per person')}</div></div>
         <div class="switch ${state.askeza.boosts.witnesses?'on':''}" onclick="toggleAskezaBoost('witnesses')"><i></i></div>
@@ -2543,7 +2730,7 @@ const SCREENS = {
 
   aSummary(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Ascesa')}</div>
       <h1>${tr('Сводка','Summary')}</h1>
       <div class="card">
         <div class="summary-line"><span class="k">${tr('Отказ','Giving up')}</span><span class="v">${state.askeza.goal} · ${askezaDurationLabel()}</span></div>
@@ -2559,7 +2746,7 @@ const SCREENS = {
 
   aPayment(){
     return screenShell(`
-      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · AAA')}</div>
+      <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Ascesa')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
       <div class="stack">
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('aConfirm',{replace:true})">
@@ -2681,15 +2868,18 @@ function mentorSetterName(formRef){
 function mentorCard(name, price, formRef){
   formRef = formRef || state.form;
   const active = formRef.mentor && formRef.mentor.name===name;
-  const rec = computeRecommendedMentor(formRef);
+  const locked = !MENTORS_ENABLED.includes(name);
+  const rec = !locked && computeRecommendedMentor(formRef);
   const img = MENTOR_IMAGES[name];
   const iconStyle = img ? `background-image:url('${img}')` : '';
   const setFn = mentorSetterName(formRef);
-  return `<div class="mentor-card ${active?'active':''}">
+  const clickAttr = locked ? '' : `onclick="${setFn}('${name}',${price})"`;
+  return `<div class="mentor-card ${active?'active':''} ${locked?'locked':''}">
     ${rec===name ? `<div class="rec-badge">${tr('Рекомендован','Recommended')}</div>` : ''}
-    <div class="mentor-icon" style="${iconStyle}" onclick="${setFn}('${name}',${price})">${img?'':name[0]}</div>
-    <div class="mname" onclick="${setFn}('${name}',${price})">${mentorName(name)}</div>
-    <div class="mtag" onclick="${setFn}('${name}',${price})">${price?price+'₽':tr('бесплатно','free')}</div>
+    ${locked ? `<div class="rec-badge" style="background:#8a8a8a;">${tr('Скоро','Coming soon')}</div>` : ''}
+    <div class="mentor-icon" style="${iconStyle}${locked?'filter:grayscale(1);opacity:.55;':''}" ${clickAttr}>${img?'':name[0]}</div>
+    <div class="mname" style="${locked?'opacity:.55;':''}" ${clickAttr}>${mentorName(name)}</div>
+    <div class="mtag" style="${locked?'opacity:.55;':''}" ${clickAttr}>${locked ? tr('в разработке','under construction') : (price?price+'₽':tr('бесплатно','free'))}</div>
     <button class="mentor-info-btn" onclick="event.stopPropagation(); showMentorInfo('${name}')">${tr('ⓘ описание','ⓘ description')}</button>
   </div>`;
 }
@@ -2801,7 +2991,7 @@ function toggleActivityTime(v){
 }
 function setPsychotype(v){ state.form.psychotype=v; render(); }
 function setSupportStyle(v){ state.form.supportStyle=v; render(); }
-function setMentor(name, price){ state.form.mentor={name,price}; render(); }
+function setMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.form.mentor={name,price}; render(); }
 function showMentorInfo(name){
   const opening = state.mentorInfoFor !== name;
   state.mentorInfoFor = (state.mentorInfoFor===name ? null : name);
@@ -2817,9 +3007,9 @@ function showMentorInfo(name){
   }
 }
 function pickRandomMentor(target){
-  const paid = Math.random() < 0.7;
-  const pool = paid ? MENTORS_PAID.map(n=>({name:n,price:500})) : MENTORS_FREE.map(n=>({name:n,price:0}));
-  const pick = pool[Math.floor(Math.random()*pool.length)];
+  // Only Cosmonaut is live right now — "random" is a no-op until more
+  // mentors are enabled, but keep the button working rather than removing it.
+  const pick = { name: 'Космонавт', price: 0 };
   if(target==='result') state.result.mentor = pick; else state.form.mentor = pick;
   go(target==='result' ? 'rBoosts' : 'boosts');
 }
@@ -2961,6 +3151,14 @@ function retakeIllumRecording(){
   setTimeout(enterIllumRecordScreen, 0);
 }
 
+// Looks up whether a mission (by its DB id) is in public mode, from the
+// already-hydrated state.missions — used to gate what publishIllum* sends
+// to the global Illuminator feed vs. only the owner's own profile.
+function missionPublicFlag(missionId){
+  const m = state.missions.find(x => x.dbId === missionId);
+  return m ? !!m.isPublic : false;
+}
+
 async function publishIllumRecording(){
   if (!illumBlob) return;
   const r = state.illumRecording;
@@ -2968,7 +3166,8 @@ async function publishIllumRecording(){
   render();
   const post = await uploadIlluminatorProof({
     kind:'video', blob: illumBlob, caption: r.caption, missionType: r.missionType,
-    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays,
+    isPublic: missionPublicFlag(r.missionId)
   });
   stopIllumMedia();
   illumBlob = null;
@@ -2994,7 +3193,8 @@ async function publishIllumPhoto(){
   render();
   const post = await uploadIlluminatorProof({
     kind:'photo', blob: r.photoBlob, caption: r.caption, missionType: r.missionType,
-    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays,
+    isPublic: missionPublicFlag(r.missionId)
   });
   if (post) state.illumPosts.unshift(post);
   finishIllumPublish(r, post);
@@ -3007,7 +3207,8 @@ async function publishIllumText(){
   render();
   const post = await uploadIlluminatorProof({
     kind:'text', caption: r.caption, missionType: r.missionType,
-    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays
+    missionTitle: r.missionTitle, missionId: r.missionId, isPromise: r.isPromise, reportDay: r.reportDay, reportTotalDays: r.reportTotalDays,
+    isPublic: missionPublicFlag(r.missionId)
   });
   if (post) state.illumPosts.unshift(post);
   finishIllumPublish(r, post);
@@ -3022,9 +3223,20 @@ function finishIllumPublish(r, post){
   state.illumRecording = { status:'idle', caption:'' };
   if (checkinIndex != null){
     const m = state.missions[checkinIndex];
-    if (m) m.reportCount = (m.reportCount||0) + 1;
+    if (m) {
+      m.reportCount = (m.reportCount||0) + 1;
+      m.lastReportDate = new Date().toISOString().slice(0,10);
+    }
     bumpMission(checkinIndex);
-    go('checkinYes', {replace:true});
+    // A mission with a fixed length (target_days) is done once the report count
+    // reaches it — congratulate instead of the ordinary "Accepted" screen, and
+    // offer to extend rather than silently letting reports run past the goal
+    // (this is what was producing "Day 26" reports on a 21-day mission).
+    if (m && m.totalDays && m.reportCount >= m.totalDays){
+      go('missionComplete', {replace:true});
+    } else {
+      go('checkinYes', {replace:true});
+    }
   } else {
     go('illuminator', {replace:true});
   }
@@ -3045,6 +3257,42 @@ function setIllumProofType(type){
   }
 }
 function toggleProfile(){ state.form.profileExpanded=!state.form.profileExpanded; render(); }
+
+// Editing your own name/bio/photo — a draft is kept separate from state.profile
+// so Cancel doesn't leave a half-typed bio behind, and Save both updates the
+// live profile immediately and persists it to Supabase.
+function openProfileEdit(){
+  state.profileEditDraft = { name: state.profile.name || '', bio: state.profile.bio || '', avatarUrl: state.profile.avatarUrl || '' };
+  go('profileEdit');
+}
+function handleAvatarSelect(input){
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { state.profileEditDraft.avatarPreview = reader.result; state.profileEditDraft.avatarFile = file; render(); };
+  reader.readAsDataURL(file);
+}
+async function saveProfileEdit(){
+  const d = state.profileEditDraft;
+  if (!d) return;
+  state.profile.name = d.name.trim() || state.profile.name;
+  state.profile.bio = d.bio.trim();
+  if (d.avatarFile && sb){
+    try {
+      const ext = (d.avatarFile.type && d.avatarFile.type.split('/')[1]) || 'jpg';
+      const fileName = `${TG_ID}_${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from('avatars').upload(fileName, d.avatarFile, { contentType: d.avatarFile.type || 'image/jpeg' });
+      if (!upErr) {
+        const { data: pub } = sb.storage.from('avatars').getPublicUrl(fileName);
+        if (pub && pub.publicUrl) state.profile.avatarUrl = pub.publicUrl;
+      }
+    } catch(e){ console.warn('avatar upload failed', e); }
+  }
+  state.profileEditDraft = null;
+  dbUpsertUserStats();
+  go('profile', {replace:true});
+}
+function cancelProfileEdit(){ state.profileEditDraft = null; back(); }
 function syncPrimary(){
   const b1=document.getElementById('btnOptimize'); if(b1) b1.disabled=!canContinueOptimize();
   const b2=document.getElementById('btnMeaning'); if(b2) b2.disabled=!state.form.meaning.trim();
@@ -3173,14 +3421,17 @@ async function attachWizardPromiseVideo(createPromise, mission, isPublic){
     const url = pub && pub.publicUrl;
     if (mission.dbId){
       await sb.from('missions').update({ promise_kind:'video', promise_video_url:url, public: !!isPublic }).eq('id', mission.dbId);
+      mission.isPublic = !!isPublic;
     }
-    if (isPublic){
-      const { data: inserted } = await sb.from('illuminator_posts').insert({
-        user_id: TG_ID, author_name: state.profile.name, mission_type: mission.type,
-        mission_title: mission.title, mission_id: mission.dbId || null, is_promise: true, kind:'video', video_url:url, caption:''
-      }).select('*').maybeSingle();
-      if (inserted){ state.illumPosts.unshift(inserted); safeRender(); }
-    }
+    // Always store the promise post — public or not — so it shows up in the
+    // owner's own profile mission-thread either way. Only public ones also
+    // land in the global Illuminator feed (loadIlluminatorPosts filters on it).
+    const { data: inserted } = await sb.from('illuminator_posts').insert({
+      user_id: TG_ID, author_name: state.profile.name, mission_type: mission.type,
+      mission_title: mission.title, mission_id: mission.dbId || null, is_promise: true, kind:'video', video_url:url, caption:'',
+      public: !!isPublic
+    }).select('*').maybeSingle();
+    if (inserted && isPublic){ state.illumPosts.unshift(inserted); safeRender(); }
   } catch(e){ console.warn('attachWizardPromiseVideo failed', e); }
 }
 
@@ -3206,9 +3457,22 @@ function openMissionCheck(i){
   state.checkinMissionIndex = i;
   if(m.type==='Аскеза'){
     go(m.progress>=100 ? 'askezaSuccess' : 'askezaCheck');
+  } else if (m.totalDays && (m.reportCount||0) >= m.totalDays){
+    go('missionComplete');
   } else {
     go('checkin');
   }
+}
+// Extend keeps everything earned so far — progress, streak, report history —
+// and just gives the mission more runway by doubling its remaining length,
+// so day N+1 continues right where day N left off instead of resetting.
+function extendMission(i){
+  const m = state.missions[i];
+  if(!m) return;
+  const addDays = m.totalDays || 21;
+  m.totalDays = (m.totalDays||0) + addDays;
+  if (m.dbId && sb) sb.from('missions').update({ target_days: m.totalDays, status:'active' }).eq('id', m.dbId).then(()=>{}, ()=>{});
+  go('home', {replace:true});
 }
 // The one daily reporting moment for Habit/Result missions: reuses the same
 // real-camera Illuminator recording engine and PROOF_RULES used for the
@@ -3218,6 +3482,9 @@ function openMissionCheck(i){
 function startDailyReport(i){
   const m = state.missions[i];
   if(!m) return;
+  const today = new Date().toISOString().slice(0,10);
+  if (m.totalDays && (m.reportCount||0) >= m.totalDays) { go('missionComplete', {replace:true}); return; }
+  if (m.lastReportDate === today) { go('checkin', {replace:true}); return; }
   const rules = proofRulesFor(m.type);
   const dayNumber = (m.reportCount||0) + 1;
   state.illumRecording = {
@@ -3256,7 +3523,7 @@ async function loadMissionThread(m){
   safeRender();
 }
 function addMissionFromForm(){
-  const mission = { title: label(effectiveHabitName()) || tr('Новая миссия','New mission'), type:'Привычка', progress: 6, mentor: state.form.mentor ? state.form.mentor.name : null };
+  const mission = { title: label(effectiveHabitName()) || tr('Новая миссия','New mission'), type:'Привычка', progress: 6, mentor: state.form.mentor ? state.form.mentor.name : null, totalDays: state.form.duration ? state.form.duration.days : null, meaning: state.form.meaning || '', isPublic: !!state.form.boosts.public };
   state.missions.unshift(mission);
   state.profile.launchedByType['Привычка'] = (state.profile.launchedByType['Привычка']||0) + 1;
   const createPromise = dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null);
@@ -3308,7 +3575,7 @@ function askezaDurationLabel(){
   }
   return state.askeza.duration.label;
 }
-function setAskezaMentor(name, price){ state.askeza.mentor={name,price}; render(); }
+function setAskezaMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.askeza.mentor={name,price}; render(); }
 function toggleAskezaBoost(key){ state.askeza.boosts[key]=!state.askeza.boosts[key]; render(); }
 function setWitness(i,v){ state.askeza.boosts.witnessList[i]=v; }
 function addWitness(){ state.askeza.boosts.witnessList.push(''); render(); }
@@ -3331,7 +3598,8 @@ function totalAskezaPrice(){
   return sum;
 }
 function addAskezaMissionFromForm(){
-  const mission = { title: state.askeza.goal || tr('Новая аскеза','New vow'), type:'Аскеза', progress: 4, mentor: state.askeza.mentor ? state.askeza.mentor.name : null };
+  const askezaDays = state.askeza.duration ? (state.askeza.duration.custom ? daysUntil(state.askeza.customDeadline) : state.askeza.duration.days) : null;
+  const mission = { title: state.askeza.goal || tr('Новая аскеза','New vow'), type:'Аскеза', progress: 4, mentor: state.askeza.mentor ? state.askeza.mentor.name : null, totalDays: askezaDays, meaning: state.askeza.meaning || '', isPublic: false };
   state.missions.unshift(mission);
   state.profile.launchedByType['Аскеза'] = (state.profile.launchedByType['Аскеза']||0) + 1;
   const createPromise = dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null);
@@ -3366,7 +3634,7 @@ function setResultTheme(v){ state.result.theme=v; render(); }
 function setResultSupportStyle(v){ state.result.supportStyle=v; render(); }
 function setResultPride(v){ state.result.pride=v; render(); }
 function setResultPsychotype(v){ state.result.psychotype=v; render(); }
-function setResultMentor(name, price){ state.result.mentor={name,price}; render(); }
+function setResultMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.result.mentor={name,price}; render(); }
 function setResultStake(v){ state.result.boosts.stake=v; render(); }
 function toggleResultBoost(key){ state.result.boosts[key]=!state.result.boosts[key]; render(); }
 function addMilestone(){
@@ -3395,7 +3663,8 @@ function totalResultPrice(){
 
 
 function addResultMissionFromForm(){
-  const mission = { title: state.result.goal || tr('Новая цель','New goal'), type:'Результат', progress: 4, mentor: state.result.mentor ? state.result.mentor.name : null };
+  const resultDays = state.result.deadline ? Math.max(daysUntil(state.result.deadline), 1) : null;
+  const mission = { title: state.result.goal || tr('Новая цель','New goal'), type:'Результат', progress: 4, mentor: state.result.mentor ? state.result.mentor.name : null, totalDays: resultDays, meaning: state.result.meaning || '', isPublic: !!state.result.boosts.public };
   state.missions.unshift(mission);
   state.profile.launchedByType['Результат'] = (state.profile.launchedByType['Результат']||0) + 1;
   const createPromise = dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null);
