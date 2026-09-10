@@ -172,6 +172,43 @@
     border-radius:16px;
     padding:16px;
   }
+  .activate-card{
+    background:var(--invert-bg);
+    color:var(--invert-text);
+    border-radius:16px;
+    padding:18px;
+    margin-top:16px;
+  }
+  .activate-card .tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.6;}
+  .activate-card h3{font-family:var(--font-head);font-size:19px;margin:6px 0 6px;}
+  .activate-card p{font-size:13px;line-height:1.5;margin:0 0 14px;opacity:.85;}
+  .activate-card .btn.primary{background:var(--invert-text);color:var(--invert-bg);}
+  .activate-banner{
+    background:var(--invert-bg);
+    color:var(--invert-text);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .activate-banner .txt{font-size:13px;line-height:1.35;}
+  .activate-banner .txt b{display:block;font-family:var(--font-head);font-size:15px;margin-bottom:2px;}
+  .activate-banner button{
+    flex:none;
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    background:var(--invert-text);
+    color:var(--invert-bg);
+    border:none;
+    border-radius:10px;
+    padding:10px 12px;
+    cursor:pointer;
+  }
   .chip{
     border:1px solid var(--line);
     background:var(--surface-2);
@@ -697,6 +734,12 @@ async function hydrateFromDB(){
       if (userRow.launched_by_type && Object.keys(userRow.launched_by_type).length) state.profile.launchedByType = userRow.launched_by_type;
       if (userRow.bio) state.profile.bio = userRow.bio;
       if (userRow.avatar_url) state.profile.avatarUrl = userRow.avatar_url;
+      // Has the user ever actually opened the Telegram chat with their mentor?
+      // cosmonaut_greeted flips true only once the bot has sent its onboarding
+      // script — i.e. the user pressed Start / sent it a first message. Until
+      // then the mentor exists in the database but has never actually spoken
+      // to them, so the app keeps nudging them to go activate the chat.
+      state.profile.mentorActivated = !!userRow.cosmonaut_greeted;
       // Local storage wins if the viewer already picked a language on this device;
       // otherwise fall back to what's saved for them in the DB (defaults to 'ru').
       if (!getStoredLang() && (userRow.language === 'en' || userRow.language === 'ru')) {
@@ -913,7 +956,8 @@ const state = {
       inspiredCount: 0,
       clones: []
     },
-    completed: []
+    completed: [],
+    mentorActivated: false
   },
   merch: {
     items: [
@@ -988,6 +1032,44 @@ const MENTORS_PAID = ['Ледокол', 'Мама Женя', 'Профессор
 // Only Cosmonaut is live for now — every other mentor renders locked
 // ("under construction") until their own persona/bot is built out.
 const MENTORS_ENABLED = ['Космонавт'];
+// The Telegram bot every mentor talks through right now. Deep link opens the
+// chat and pre-fills /start with a payload — Telegram requires the user to
+// press Start there at least once before the bot is allowed to message them,
+// and that's also exactly the moment the bot fires its onboarding script.
+const MENTOR_BOT_USERNAME = 'TYAGA_Cosmonaut';
+function mentorBotDeepLink(){ return 'https://t.me/' + MENTOR_BOT_USERNAME + '?start=activate'; }
+function openMentorChat(){
+  try{
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink){
+      window.Telegram.WebApp.openTelegramLink(mentorBotDeepLink());
+      return;
+    }
+  }catch(e){}
+  window.open(mentorBotDeepLink(), '_blank');
+}
+// Shown right after a mission is created — this is the hard hand-off moment:
+// the promise now exists, but the mentor can't actually say a word to the
+// user until they open the Telegram chat and press Start. Framed as a
+// required step, not an optional extra.
+function mentorActivationCard(){
+  return `<div class="activate-card">
+    <div class="tag">${tr('Обязательный шаг','Required step')}</div>
+    <h3>${tr('Наставник ждёт тебя в Telegram','Your mentor is waiting in Telegram')}</h3>
+    <p>${tr('Это твой первый контакт с ним. Нажми Start в чате — без этого он не сможет писать тебе, принимать отчёты и напоминать о цели.','This is your first contact with him. Tap Start in the chat — without it he can\'t message you, take your reports, or remind you about your goal.')}</p>
+    <button class="btn primary block" onclick="openMentorChat()">${tr('Открыть чат и нажать Start','Open chat and tap Start')}</button>
+  </div>`;
+}
+// Persistent nag for anyone who skipped the card above — shown on Home until
+// state.profile.mentorActivated flips true (server-side, once the bot sees
+// their first message).
+function mentorActivationBanner(){
+  if (state.profile.mentorActivated) return '';
+  if (!state.missions || !state.missions.length) return '';
+  return `<div class="activate-banner">
+    <div class="txt"><b>${tr('Чат с наставником не активирован','Mentor chat not activated')}</b>${tr('Он ещё ни разу тебе не писал — открой чат и нажми Start.','He hasn\'t messaged you yet — open the chat and tap Start.')}</div>
+    <button onclick="openMentorChat()">${tr('Открыть','Open')}</button>
+  </div>`;
+}
 const MENTOR_INFO = {
   'Космонавт': {
     bio:{ru:'Голос ЦУЦ — говорит с тобой прямо из рубки, коротко и по делу, сухой юмор вместо пустой мотивации. Всегда на связи по радио, каким бы ни было время суток и каким бы ни был твой прогресс.', en:"The voice of Mission Control — talks to you straight from the cockpit, short and to the point, dry humor instead of empty pep talks. Always on the radio, whatever the hour and whatever your progress looks like."},
@@ -1972,7 +2054,8 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      <button class="btn primary block" style="margin-top:10px;" onclick="resetForm(); go('home',{replace:true})">${tr('Погнали','Let\'s go')}</button>
+      ${mentorActivationCard()}
+      <button class="btn block" style="margin-top:10px;" onclick="resetForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'12П'});
   },
 
@@ -1981,6 +2064,7 @@ const SCREENS = {
     return `
       <div class="eyebrow">${tr('Главная','Home')}</div>
       <h1>${tr('Твои миссии','Your missions')}</h1>
+      ${mentorActivationBanner()}
       ${state.missions.length===0 ? `<div class="placeholder-box" style="cursor:pointer;" onclick="go('tickets')">${tr('Пока пусто. Нажми «+», чтобы запустить первую миссию.','Nothing here yet. Tap “+” to launch your first mission.')}</div>` :
         state.missions.map((m,i)=>`
           <div class="mission-card" onclick="openMissionCheck(${i})">
@@ -2605,7 +2689,8 @@ const SCREENS = {
         ${text}
       </div>
       <p class="hint" style="margin-top:10px;">${tr('Драйв в профиле уже пошёл вверх — миссия запущена.','Your Drive score just went up — mission launched.')}</p>
-      <button class="btn primary block" style="margin-top:10px;" onclick="resetResultForm(); go('home',{replace:true})">${tr('Погнали','Let\'s go')}</button>
+      ${mentorActivationCard()}
+      <button class="btn block" style="margin-top:10px;" onclick="resetResultForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'13Р'});
   },
 
@@ -2771,7 +2856,8 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      <button class="btn primary block" style="margin-top:18px;" onclick="resetAskezaForm(); go('home',{replace:true})">${tr('Погнали','Let\'s go')}</button>
+      ${mentorActivationCard()}
+      <button class="btn block" style="margin-top:18px;" onclick="resetAskezaForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'9А'});
   },
 
