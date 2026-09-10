@@ -751,6 +751,23 @@ async function hydrateFromDB(){
       if (activeMissions) {
         state.missions = activeMissions.map(m => ({ title:m.title, type:m.type, progress:m.progress, dbId:m.id, mentor:m.mentor||null, reportCount:m.report_count||0, totalDays:m.target_days||null, lastReportDate:m.last_report_date||null, isPublic:!!m.public }));
       }
+      // Profile's "Завершённые миссии" was reading state.profile.completed, which
+      // was only ever initialized to [] and never actually filled in from the DB —
+      // so finished missions never showed up there no matter how many the user
+      // completed. Pull them in here, oldest first so index 0 is the user's very
+      // first completion (firstCosmic — matches the achievement check elsewhere),
+      // then reverse for display so the newest completion shows on top.
+      const { data: completedMissions } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','completed').order('finished_at', { ascending:true });
+      if (completedMissions) {
+        state.profile.completed = completedMissions.map((m,i) => ({
+          title: m.title,
+          type: m.type,
+          days: m.report_count || m.target_days || 0,
+          report: m.meaning || '',
+          finished: m.finished_at ? new Date(m.finished_at).toLocaleDateString(state.lang==='en'?'en-US':'ru-RU') : '',
+          firstCosmic: i===0,
+        })).reverse();
+      }
     }
     dbHydrated = true;
     safeRender();
@@ -910,7 +927,8 @@ const state = {
     fastTrack: false,
     ticketId: null,
     ticketGoal: '',
-    ticketReport: ''
+    ticketReport: '',
+    missionCreated: false
   },
   result: {
     goal: '', theme: null, themeOther: '',
@@ -919,7 +937,8 @@ const state = {
     psychotype: null, supportStyle: null, toneSupport: 40, trust: 60, pride: null,
     meaning: '', mentor: null,
     boosts: { aiAnalysis:false, stake:null, public:false, secondChance:false },
-    videoDone: false
+    videoDone: false,
+    missionCreated: false
   },
   askeza: {
     goal: '', theme: null, themeOther: '',
@@ -929,7 +948,8 @@ const state = {
     customDeadline: '',
     videoDone: false, videoSkipped: false,
     mentor: null,
-    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' }
+    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' },
+    missionCreated: false
   },
   quiz: {},
   quizOwn: {},
@@ -1285,7 +1305,7 @@ function screenShell(inner, {back:showBack=true, step=null} = {}){
 function wizardCamBlock(){
   const st = (state.wizCam && state.wizCam.status) || 'idle';
   return `
-    <video id="wizCamPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;max-height:340px;object-fit:cover;"></video>
+    <video id="wizCamPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;aspect-ratio:9/16;max-height:70vh;object-fit:cover;"></video>
     <div id="wizRecTimer" class="hint" style="text-align:center;margin:8px 0;">${st==='recording'?'00:00':''}</div>
     ${st==='idle' ? `<button class="btn primary block" onclick="startWizardRecording()">${tr('● Начать запись','● Start recording')}</button>` : ''}
     ${st==='recording' ? `<button class="btn primary block" onclick="stopWizardRecording()">${tr('■ Остановить','■ Stop')}</button>` : ''}
@@ -1365,7 +1385,13 @@ function recommendedIlluminatorPosts(){
   const myTypes = {};
   (state.missions||[]).forEach(m => { if(m.type) myTypes[m.type] = (myTypes[m.type]||0) + 3; });
   Object.entries(state.profile.launchedByType||{}).forEach(([t,n]) => { myTypes[t] = (myTypes[t]||0) + Math.min(n,5); });
-  const all = [...state.illumPosts, ...ILLUMINATOR_POSTS];
+  // Real posts only — ILLUMINATOR_POSTS is placeholder/demo content (Марина/
+  // Игорь/Света) with no real video, rendered as a flat gradient box with a
+  // fake play circle. Mixing it into the live feed is exactly what made real
+  // posts look "messed up with random circles above every post"; only fall
+  // back to the demo set when there are no real posts at all, so a brand-new
+  // account isn't staring at an empty feed.
+  const all = state.illumPosts.length ? state.illumPosts : ILLUMINATOR_POSTS;
   return all.map((p,i) => ({ p, i, score: (myTypes[p.mission_type || p.type] || 0) + (p.support_count||0)*0.1 }))
     .sort((a,b) => b.score - a.score || a.i - b.i)
     .map(x => x.p);
@@ -1435,9 +1461,9 @@ function postCard(p, groupIndex, count){
     const initial = ((p.author_name||'?').trim().charAt(0) || '?').toUpperCase();
     const tag = p.mission_type || tr('Пост','Post');
     const media = p.video_url
-      ? `<video src="${p.video_url}" controls playsinline style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;"></video>`
+      ? `<video src="${p.video_url}" controls playsinline preload="metadata" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;"></video>`
       : p.photo_url
-        ? `<img src="${p.photo_url}" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;display:block;">`
+        ? `<img src="${p.photo_url}" loading="lazy" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;display:block;">`
         : '';
     return `<div class="post">
       <div class="post-head"><div class="avatar" style="width:34px;height:34px;font-size:14px;">${initial}</div><div><div class="pname">${p.author_name||tr('Пилот','Pilot')}</div><div class="ptag">${tag}</div></div></div>
@@ -2043,7 +2069,11 @@ const SCREENS = {
   },
 
   confirm(){
-    addMissionFromForm();
+    // Guarded: this is a screen-render function, and render() re-runs it on
+    // every re-render while the user is on this screen (any safeRender() that
+    // fires from an unrelated async op — e.g. dbUpsertUserStats resolving —
+    // would otherwise insert a second, identical mission row). Create once.
+    if (!state.form.missionCreated) { state.form.missionCreated = true; addMissionFromForm(); }
     const name = state.form.mentor ? state.form.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Экипаж на месте, курс проложен. Через 3... 2... 1... старт! Увидимся на орбите. Приём.','Pshhhh... Crew in position, course is set. In 3... 2... 1... liftoff! See you in orbit. Over.')
@@ -2243,11 +2273,6 @@ const SCREENS = {
     const totalDrive = driveTotal(p);
     const rank = computeDopuskRank(totalCompleted);
     const types = ['Привычка','Результат','Аскеза'];
-    const TYPE_ICON = { 'Привычка':'runner', 'Результат':'target', 'Аскеза':'shield' };
-    let fleetIcons = types.flatMap(t => Array.from({length:p.launchedByType[t]||0}).map(()=>TYPE_ICON[t]));
-    const fleetExtra = fleetIcons.length > 18 ? `<span class="fleet-extra">+${fleetIcons.length-18}</span>` : '';
-    fleetIcons = fleetIcons.slice(0,18).map(name=>icon(name)).join('');
-
     const displayName = (p.name && p.name.trim()) || tr('Гость','Guest');
     return `
       <div class="eyebrow">${tr('Профиль','Profile')}</div>
@@ -2287,10 +2312,6 @@ const SCREENS = {
           return `<div class="type-row"><span class="tn">${typeLabel(t)}</span><span class="tv">${(p.ls.byType[t]||0).toLocaleString(state.lang==='en'?'en-US':'ru-RU')} ${tr('Л.С.','FH')} · ${rankLabel(tRank.name)} · ${tr('Драйв','Drive')} ${p.launchedByType[t]||0}</span></div>`;
         }).join('')}
       </div>
-
-      <h2>${tr('Дистанция','Distance')}</h2>
-      <p class="hint" style="margin:-2px 0 8px;">${tr('Каждая иконка — миссия, которую ты когда-либо запускал (привычка, результат, аскеза), независимо от исхода.','Every icon is a mission you\'ve ever launched (habit, result, ascesa), regardless of outcome.')}</p>
-      <div class="fleet-row">${fleetIcons}${fleetExtra}</div>
 
       <h2 style="margin-top:20px;">${tr('Ачивки','Achievements')}</h2>
       <div class="badge-row2">${BADGES.map(b=>badgeCard(b,p)).join('')}</div>
@@ -2388,7 +2409,7 @@ const SCREENS = {
       <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
       <h1>${r.isPromise ? tr('Видео-обещание','Video promise') : tr('Видео-отчёт','Video report')}</h1>
       ${titleLine}${typeChooser}
-      <video id="cameraPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;max-height:360px;object-fit:cover;"></video>
+      <video id="cameraPreview" autoplay playsinline ${st==='reviewing'?'controls':'muted'} style="width:100%;border-radius:16px;background:#000;aspect-ratio:9/16;max-height:70vh;object-fit:cover;"></video>
       <div id="recTimer" class="hint" style="text-align:center;margin:8px 0;">${st==='recording'?'00:00':''}</div>
       ${st==='idle' ? `<button class="btn primary block" onclick="startIllumRecording()">${tr('● Начать запись','● Start recording')}</button>` : ''}
       ${st==='recording' ? `<button class="btn primary block" onclick="stopIllumRecording()">${tr('■ Остановить','■ Stop')}</button>` : ''}
@@ -2677,7 +2698,9 @@ const SCREENS = {
   },
 
   rConfirm(){
-    addResultMissionFromForm();
+    // Guarded — see confirm() above: without this, a re-render while on this
+    // screen inserts a duplicate mission row.
+    if (!state.result.missionCreated) { state.result.missionCreated = true; addResultMissionFromForm(); }
     const name = state.result.mentor ? state.result.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Курс на цель проложен, все этапы отмечены на карте. Через 3... 2... 1... старт! Приём.','Pshhhh... Course to the goal is set, all milestones marked on the map. In 3... 2... 1... liftoff! Over.')
@@ -2845,7 +2868,9 @@ const SCREENS = {
   },
 
   aConfirm(){
-    addAskezaMissionFromForm();
+    // Guarded — see confirm() above: without this, a re-render while on this
+    // screen inserts a duplicate mission row.
+    if (!state.askeza.missionCreated) { state.askeza.missionCreated = true; addAskezaMissionFromForm(); }
     const name = state.askeza.mentor ? state.askeza.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Ну что, командир, экипаж на месте, курс проложен — только на этот раз это твой личный контракт с гравитацией, никто его для тебя не подписывал. Я на связи, если что. Удачи там, за атмосферой. Отбой.','Pshhhh... Well, commander, crew\'s in position, course is set — except this time it\'s your own personal contract with gravity, nobody signed it for you. I\'m on the line if you need me. Good luck out there, beyond the atmosphere. Over and out.')
@@ -3622,7 +3647,7 @@ function resetForm(){
     freq:null, freqDays:[], freqEvent:'', activityTime:[], whenWhere:'',
     psychotype:null, supportStyle:null, toneSupport:40, persistence:60,
     meaning:'', mentor:null, boosts:{stake:null,public:false}, videoDone:false,
-    profileExpanded:state.form.profileExpanded, fastTrack:false, ticketId:null, ticketGoal:'', ticketReport:''
+    profileExpanded:state.form.profileExpanded, fastTrack:false, ticketId:null, ticketGoal:'', ticketReport:'', missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
   applyQuizResult();
@@ -3703,7 +3728,8 @@ function resetAskezaForm(){
     duration:null, customDeadline:'',
     videoDone:false, videoSkipped:false,
     mentor:null,
-    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' }
+    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' },
+    missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
 }
@@ -3765,7 +3791,8 @@ function resetResultForm(){
     psychotype:null, supportStyle:null, toneSupport:40, trust:60, pride:null,
     meaning:'', mentor:null,
     boosts:{ aiAnalysis:false, stake:null, public:false, secondChance:false },
-    videoDone:false
+    videoDone:false,
+    missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
   applyQuizResult();
