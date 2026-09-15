@@ -679,6 +679,16 @@ async function doInitiatePayment(kind){
   const cfg = PAYMENT_KIND_CONFIG[kind];
   if (!cfg) return;
   const amount = cfg.total();
+  if (amount <= 0) {
+    // Nothing to charge (e.g. a free fast-track "ready ticket" mission whose
+    // duration carries price:0) — ЮKassa correctly refuses to create a ₽0
+    // payment, which used to leave the user stuck on the payment screen with
+    // no visible error. Skip checkout entirely and go straight to the
+    // confirmation screen, which is what actually creates the mission.
+    state.payment = null;
+    go(cfg.confirmScreen);
+    return;
+  }
   state.payment = { kind, status:'creating', error:null, paymentId:null };
   render();
   try {
@@ -697,7 +707,7 @@ async function doInitiatePayment(kind){
     if (!res.ok || !data || !data.confirmation_url) {
       state.payment.status = 'error';
       state.payment.error = (data && data.error) || ('http_'+res.status);
-      render();
+      go('awaitingPayment');
       return;
     }
     state.payment.paymentId = data.payment_id;
@@ -708,7 +718,7 @@ async function doInitiatePayment(kind){
   } catch(e){
     state.payment.status = 'error';
     state.payment.error = String(e);
-    render();
+    go('awaitingPayment');
   }
 }
 
@@ -1447,6 +1457,17 @@ function chip(label, active, onclick){
 // that just navigated to confirm() with nothing actually charged.
 function paymentCard(kind, stakeNote){
   const amount = PAYMENT_KIND_CONFIG[kind].total();
+  if (amount <= 0) {
+    // Free mission (e.g. a fast-track "ready ticket") — nothing to charge,
+    // so skip the ЮKassa card entirely rather than offering a ₽0 "payment"
+    // that the backend would (correctly) refuse to process.
+    return `
+      <div class="stack">
+        <button class="btn primary block" onclick="initiatePayment('${kind}')">${tr('Начать бесплатно','Start for free')}</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">${tr('Эта программа бесплатная — оплата не требуется.','This program is free — no payment needed.')}</p>
+    `;
+  }
   return `
     <div class="stack">
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="initiatePayment('${kind}')">
@@ -2363,7 +2384,7 @@ const SCREENS = {
         <div class="total-line"><span>${tr('Итого сегодня','Total today')}</span><span>${totalPrice()}₽</span></div>
       </div>
       <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
-      <button class="btn primary block" style="margin-top:18px;" onclick="go('payment')">${tr('Оплатить','Pay')} ${totalPrice()}₽</button>
+      <button class="btn primary block" style="margin-top:18px;" onclick="go('payment')">${totalPrice()>0 ? tr('Оплатить','Pay')+' '+totalPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'10П'});
   },
 
@@ -3048,7 +3069,7 @@ const SCREENS = {
         <div class="total-line"><span>${tr('Итого сегодня','Total today')}</span><span>${totalResultPrice()}₽</span></div>
       </div>
       <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
-      <button class="btn primary block" style="margin-top:18px;" onclick="go('rPayment')">${tr('Оплатить','Pay')} ${totalResultPrice()}₽</button>
+      <button class="btn primary block" style="margin-top:18px;" onclick="go('rPayment')">${totalResultPrice()>0 ? tr('Оплатить','Pay')+' '+totalResultPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'11Р'});
   },
 
@@ -3211,7 +3232,7 @@ const SCREENS = {
         <div class="summary-line"><span class="k">${tr('Поддержка','Support')}</span><span class="v">${state.askeza.boosts.support?'+400₽':tr('нет','none')}</span></div>
         <div class="total-line"><span>${tr('Итого','Total')}</span><span>${totalAskezaPrice()}₽</span></div>
       </div>
-      <button class="btn primary block" style="margin-top:18px;" onclick="go('aPayment')">${tr('Оплатить','Pay')} ${totalAskezaPrice()}₽</button>
+      <button class="btn primary block" style="margin-top:18px;" onclick="go('aPayment')">${totalAskezaPrice()>0 ? tr('Оплатить','Pay')+' '+totalAskezaPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'8А'});
   },
 
