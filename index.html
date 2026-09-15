@@ -375,6 +375,14 @@
   .navbtn.active{color:#fff;}
   .navbtn svg{width:20px;height:20px;}
 
+  /* Generic inline icon() helper — without this, a bare <svg> with only a
+     viewBox (no width/height) falls back to the browser default render size
+     (can be 300px+), which is exactly the "giant ring / giant bolt" glyph
+     reported filling the Illuminator feed and the Profile completed-missions
+     list. Every icon() call must render small and inline like a text glyph. */
+  .icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;vertical-align:-3px;}
+  .icon svg{width:100%;height:100%;}
+
   /* home */
   .mission-card{
     border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;cursor:pointer;
@@ -2423,7 +2431,7 @@ const SCREENS = {
       <div class="eyebrow">${tr('Главная','Home')}</div>
       <h1>${tr('Твои миссии','Your missions')}</h1>
       ${mentorActivationBanner()}
-      ${state.missions.length===0 ? `<div class="placeholder-box" style="cursor:pointer;" onclick="go('tickets')">${tr('Пока пусто. Нажми «+», чтобы запустить первую миссию.','Nothing here yet. Tap “+” to launch your first mission.')}</div>` :
+      ${state.missions.length===0 ? `<div class="placeholder-box" style="cursor:pointer;" onclick="go('tickets')">${tr('Пока пусто. Нажми ниже, чтобы запустить первую миссию.','Nothing here yet. Tap below to launch your first mission.')}</div>` :
         state.missions.map((m,i)=>`
           <div class="mission-card" onclick="openMissionCheck(${i})">
             <div class="mtop"><span class="mtitle">${tf(m.title)}</span><span class="mtype">${typeLabel(m.type)}</span></div>
@@ -2432,7 +2440,7 @@ const SCREENS = {
           </div>
         `).join('')
       }
-      <button class="fab" onclick="go('tickets')">+</button>
+      <button class="btn primary block" style="margin-top:14px;" onclick="go('tickets')">${state.missions.length===0 ? tr('Запустить первую миссию','Launch your first mission') : tr('+ Новая миссия','+ New mission')}</button>
     `;
   },
 
@@ -2713,14 +2721,22 @@ const SCREENS = {
     `;
 
     if (proofType === 'photo'){
+      const hasShot = !!r.photoPreview;
       return screenShell(`
         <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
         <h1>${r.isPromise ? tr('Фото-обещание','Photo promise') : tr('Фото-отчёт','Photo report')}</h1>
         ${titleLine}${typeChooser}
-        ${r.photoPreview ? `<img src="${r.photoPreview}" style="width:100%;border-radius:16px;max-height:360px;object-fit:cover;display:block;margin-bottom:10px;">` : ''}
-        <input type="file" accept="image/*" capture="environment" onchange="handleIllumPhotoSelect(this)" style="display:block;margin-bottom:10px;color:var(--text-dim);">
-        <textarea rows="2" placeholder="${tr('Подпись к фото (необязательно)','Photo caption (optional)')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
-        <button class="btn primary block" style="margin-top:10px;" ${r.photoBlob?'':'disabled'} onclick="publishIllumPhoto()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
+        ${hasShot
+          ? `<img src="${r.photoPreview}" style="width:100%;border-radius:16px;max-height:70vh;object-fit:cover;display:block;margin-bottom:10px;">`
+          : `<video id="cameraPreview" autoplay playsinline muted style="width:100%;border-radius:16px;background:#000;aspect-ratio:9/16;max-height:70vh;object-fit:cover;"></video>`
+        }
+        ${hasShot ? `
+          <textarea rows="2" placeholder="${tr('Подпись к фото (необязательно)','Photo caption (optional)')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="btn ghost block" onclick="retakeIllumPhoto()">${tr('Заново','Retake')}</button>
+            <button class="btn primary block" onclick="publishIllumPhoto()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
+          </div>
+        ` : `<button class="btn primary block" style="margin-top:10px;" onclick="capturePhoto()">${tr('📷 Сделать фото','📷 Take photo')}</button>`}
       `, {step: tr('Фото','Photo')});
     }
     if (proofType === 'text'){
@@ -2728,8 +2744,8 @@ const SCREENS = {
         <div class="eyebrow">${tr('Иллюминатор','Viewport')}</div>
         <h1>${r.isPromise ? tr('Текстовое обещание','Text promise') : tr('Текстовый отчёт','Text report')}</h1>
         ${titleLine}${typeChooser}
-        <textarea rows="5" placeholder="${tr('Опиши честно, как всё прошло','Describe honestly how it went')}" oninput="state.illumRecording.caption=this.value">${r.caption}</textarea>
-        <button class="btn primary block" style="margin-top:10px;" ${r.caption&&r.caption.trim()?'':'disabled'} onclick="publishIllumText()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
+        <textarea rows="5" placeholder="${tr('Опиши честно, как всё прошло','Describe honestly how it went')}" oninput="state.illumRecording.caption=this.value; syncIllumTextBtn()">${r.caption}</textarea>
+        <button id="btnIllumText" class="btn primary block" style="margin-top:10px;" ${r.caption&&r.caption.trim()?'':'disabled'} onclick="publishIllumText()">${st==='uploading' ? tr('Публикуем…','Publishing…') : tr('Опубликовать','Publish')}</button>
       `, {step: tr('Текст','Text')});
     }
 
@@ -3600,8 +3616,14 @@ async function enterIllumRecordScreen(){
     illumStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: 'user',
+        // aspectRatio (not a separately-forced width+height pair) lets the
+        // browser pick/crop the camera's native mode itself. Forcing exact
+        // 1080x1920 used to make phones whose front camera can't hit that
+        // exact mode fall back to a wider (e.g. 4:3) stream, which object-fit:
+        // cover then cropped brutally into a tight, "zoomed-in" forehead shot
+        // instead of a normal Instagram-style framing.
+        aspectRatio: { ideal: 9/16 },
         width: { ideal: 1080 },
-        height: { ideal: 1920 },
         frameRate: { ideal: 30, max: 30 }
       },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -3747,6 +3769,7 @@ async function publishIllumText(){
 // "Accepted" confirmation the old fake check-in used to show directly.
 function finishIllumPublish(r, post){
   const checkinIndex = r.checkinIndex;
+  stopIllumMedia();
   state.illumRecording = { status:'idle', caption:'' };
   if (checkinIndex != null){
     const m = state.missions[checkinIndex];
@@ -3770,18 +3793,63 @@ function finishIllumPublish(r, post){
   loadIlluminatorPosts();
 }
 
+// Reattaches the already-live camera stream to a freshly re-rendered <video>
+// element (render() rebuilds the DOM from scratch, which drops the old
+// element's srcObject) instead of calling getUserMedia again — avoids a
+// second permission prompt / a second live stream when switching between
+// the video and photo proof types, both of which use the same camera feed.
+function reattachIllumStream(){
+  if (illumStream) {
+    const video = document.getElementById('cameraPreview');
+    if (video) { video.srcObject = illumStream; video.style.transform = 'scaleX(-1)'; }
+  } else {
+    enterIllumRecordScreen();
+  }
+}
 function setIllumProofType(type){
   const rules = proofRulesFor(state.illumRecording.missionType);
   if (!rules[type]) return;
-  const wasVideo = state.illumRecording.proofType === 'video';
+  const needsCamera = type === 'video' || type === 'photo';
   state.illumRecording.proofType = type;
-  if (type === 'video'){
+  if (needsCamera){
     render();
-    setTimeout(enterIllumRecordScreen, 0);
+    setTimeout(reattachIllumStream, 0);
   } else {
-    if (wasVideo) stopIllumMedia();
+    stopIllumMedia();
     render();
   }
+}
+function syncIllumTextBtn(){
+  const b = document.getElementById('btnIllumText');
+  if (b) b.disabled = !(state.illumRecording.caption && state.illumRecording.caption.trim());
+}
+// Live in-app photo capture — takes a snapshot off the same getUserMedia
+// stream used for video, instead of a device file/gallery picker (which let
+// people upload an old photo rather than proving the moment live).
+function capturePhoto(){
+  const video = document.getElementById('cameraPreview');
+  if (!video || !video.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  // Preview is CSS-mirrored (scaleX(-1)) for a natural selfie feel, but the
+  // saved photo itself should read normally — same convention as video.
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    state.illumRecording.photoBlob = blob;
+    state.illumRecording.photoPreview = canvas.toDataURL('image/jpeg', 0.92);
+    render();
+  }, 'image/jpeg', 0.92);
+}
+function retakeIllumPhoto(){
+  state.illumRecording.photoBlob = null;
+  state.illumRecording.photoPreview = null;
+  render();
+  setTimeout(reattachIllumStream, 0);
 }
 function toggleProfile(){ state.form.profileExpanded=!state.form.profileExpanded; render(); }
 
@@ -3847,7 +3915,10 @@ let wizStream = null, wizRecorder = null, wizChunks = [], wizBlob = null, wizTim
 async function enterWizardCam(){
   try {
     wizStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 }, frameRate: { ideal: 30, max: 30 } },
+      // aspectRatio (not a forced width+height pair) — see enterIllumRecordScreen
+      // for why: forcing exact 1080x1920 made some phones fall back to a wider
+      // native mode, which object-fit:cover then cropped into a "zoomed in" shot.
+      video: { facingMode: 'user', aspectRatio: { ideal: 9/16 }, width: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
     const video = document.getElementById('wizCamPreview');
