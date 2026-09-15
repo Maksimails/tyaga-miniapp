@@ -621,6 +621,143 @@ function toggleNotify(){
   setStoredNotify(state.settings.notifyOn);
   render();
 }
+
+/* ===== 18+ gate ===== *
+ * Nothing enforced this before — age was a free-text optional onboarding
+ * field with no minimum. Real money now moves through this app, so every
+ * checkout path (mission tariffs, and later merch/mentors) must pass through
+ * here first. The localStorage flag is just a UX shortcut to skip asking
+ * twice on the same device; the actual enforcement is server-side, in the
+ * create-payment edge function, which refuses to create a charge unless
+ * users.age_confirmed_18 is true in the database. */
+function getStoredAge18(){
+  try { return localStorage.getItem('tyaga_age18_' + TG_ID) === '1'; } catch(e){ return false; }
+}
+function setStoredAge18(){
+  try { localStorage.setItem('tyaga_age18_' + TG_ID, '1'); } catch(e){}
+}
+function isAge18Confirmed(){
+  return state.age18Confirmed || getStoredAge18();
+}
+// Where to resume once the gate is passed — set right before navigating to
+// 'ageGate', read (and cleared) by confirmAge18().
+let age18ResumeAction = null;
+function requireAge18ThenRun(resumeFn){
+  if (isAge18Confirmed()) { resumeFn(); return; }
+  age18ResumeAction = resumeFn;
+  go('ageGate');
+}
+async function confirmAge18(){
+  state.age18Confirmed = true;
+  setStoredAge18();
+  if (sb) {
+    try { await sb.from('users').update({ age_confirmed_18: true }).eq('telegram_id', TG_ID); }
+    catch(e){ console.warn('age_confirmed_18 save failed — продолжаем локально', e); }
+  }
+  const resume = age18ResumeAction;
+  age18ResumeAction = null;
+  if (resume) resume(); else back();
+}
+
+/* ===== Реальная оплата (ЮKassa) — заменяет старые Apple Pay / Карта
+ * кнопки, которые просто переводили на confirm() без списания. ===== */
+const PAYMENT_FUNCTIONS_BASE = SUPABASE_URL + '/functions/v1/';
+
+// kind: 'habit' | 'result' | 'askeza' — picks the right total-price function,
+// state bucket, and (once payment is verified) the right addXMissionFromForm().
+const PAYMENT_KIND_CONFIG = {
+  habit:  { total: () => totalPrice(),        confirmScreen: 'confirm',  label: () => tr('Привычка','Habit') },
+  result: { total: () => totalResultPrice(),   confirmScreen: 'rConfirm', label: () => tr('Результат','Result') },
+  askeza: { total: () => totalAskezaPrice(),   confirmScreen: 'aConfirm', label: () => tr('Аскеза','Ascesis') },
+};
+
+async function initiatePayment(kind){
+  requireAge18ThenRun(() => doInitiatePayment(kind));
+}
+
+async function doInitiatePayment(kind){
+  const cfg = PAYMENT_KIND_CONFIG[kind];
+  if (!cfg) return;
+  const amount = cfg.total();
+  state.payment = { kind, status:'creating', error:null, paymentId:null };
+  render();
+  try {
+    const res = await fetch(PAYMENT_FUNCTIONS_BASE + 'create-payment', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
+      body: JSON.stringify({
+        user_id: TG_ID,
+        purpose: 'tariff',
+        amount_kopeks: Math.round(amount*100),
+        description: 'ТЯГА · ' + cfg.label(),
+        reference: { kind },
+      }),
+    });
+    const data = await res.json().catch(()=>null);
+    if (!res.ok || !data || !data.confirmation_url) {
+      state.payment.status = 'error';
+      state.payment.error = (data && data.error) || ('http_'+res.status);
+      render();
+      return;
+    }
+    state.payment.paymentId = data.payment_id;
+    state.payment.status = 'awaiting';
+    go('awaitingPayment');
+    openPaymentUrl(data.confirmation_url);
+    pollPayment();
+  } catch(e){
+    state.payment.status = 'error';
+    state.payment.error = String(e);
+    render();
+  }
+}
+
+function openPaymentUrl(url){
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+      window.Telegram.WebApp.openLink(url, { try_instant_view:false });
+      return;
+    }
+  } catch(e){}
+  window.open(url, '_blank');
+}
+
+let paymentPollHandle = null;
+function pollPayment(){
+  if (paymentPollHandle) clearInterval(paymentPollHandle);
+  let elapsed = 0;
+  paymentPollHandle = setInterval(async () => {
+    elapsed += 2000;
+    if (!state.payment || !state.payment.paymentId) { clearInterval(paymentPollHandle); return; }
+    try {
+      const { data } = await sb.from('payments').select('status').eq('id', state.payment.paymentId).maybeSingle();
+      if (data && data.status === 'succeeded') {
+        clearInterval(paymentPollHandle);
+        state.payment.status = 'succeeded';
+        const cfg = PAYMENT_KIND_CONFIG[state.payment.kind];
+        safeRender();
+        go(cfg.confirmScreen, {replace:true});
+      } else if (data && data.status === 'canceled') {
+        clearInterval(paymentPollHandle);
+        state.payment.status = 'canceled';
+        safeRender();
+      }
+    } catch(e){ /* keep polling — a transient network hiccup shouldn't abort the wait */ }
+    if (elapsed > 120000 && state.payment && state.payment.status === 'awaiting') {
+      clearInterval(paymentPollHandle);
+      state.payment.status = 'timeout';
+      safeRender();
+    }
+  }, 2000);
+}
+function cancelPaymentWait(){
+  if (paymentPollHandle) clearInterval(paymentPollHandle);
+  state.payment = null;
+  back();
+}
+function recheckPaymentNow(){
+  if (state.payment) { state.payment.status = 'awaiting'; render(); pollPayment(); }
+}
 // tr(ru, en) — returns the string matching state.lang. Called `tr` (not `t`)
 // because several screen functions already use a local variable named `t`.
 function tr(ru, en){
@@ -753,6 +890,7 @@ async function hydrateFromDB(){
       // then the mentor exists in the database but has never actually spoken
       // to them, so the app keeps nudging them to go activate the chat.
       state.profile.mentorActivated = !!userRow.cosmonaut_greeted;
+      if (userRow.age_confirmed_18) state.age18Confirmed = true;
       // Local storage wins if the viewer already picked a language on this device;
       // otherwise fall back to what's saved for them in the DB (defaults to 'ru').
       if (!getStoredLang() && (userRow.language === 'en' || userRow.language === 'ru')) {
@@ -903,6 +1041,8 @@ const state = {
   onboard: { dataOk:false, agreeOk:false, notifyOk:false, name:'', age:'', gender:null },
   lang: 'ru',
   settings: { notifyOn: false },
+  age18Confirmed: false,   // real gate lives server-side; this just skips re-asking on this device
+  payment: null,           // { kind, status: creating|awaiting|succeeded|canceled|timeout|error, error, paymentId }
   mentorInfoFor: null,
   ticketsTab: 'own',
   illumPlaying: null,
@@ -1302,6 +1442,22 @@ function chip(label, active, onclick){
   return `<div class="chip ${active?'active':''}" onclick="${onclick}">${label}</div>`;
 }
 
+// Real ЮKassa checkout card, shared by the three payment screens (Habit/
+// Result/Ascesis) — replaces the old two fake "Apple Pay" / "Карта" rows
+// that just navigated to confirm() with nothing actually charged.
+function paymentCard(kind, stakeNote){
+  const amount = PAYMENT_KIND_CONFIG[kind].total();
+  return `
+    <div class="stack">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="initiatePayment('${kind}')">
+        <span>${tr('Карта · ЮKassa','Card · YooKassa')}</span><span class="hint">${amount}₽ →</span>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px;">${tr('Оплата открывается в браузере Telegram — после оплаты ты автоматически вернёшься сюда.','Checkout opens inside Telegram\'s browser — you\'ll be brought back here automatically once it\'s done.')}</p>
+    ${stakeNote ? `<p class="hint" style="margin-top:14px;">${tr('Отдельно сохраним карту для усиления обещания — спишется один раз, только при провале.','We\'ll separately save a card to back up your promise — it\'s charged once, only if you fail.')}</p>` : ''}
+  `;
+}
+
 // Small step-badge codes like "3П"/"5Р"/"2А" use a trailing Cyrillic letter for
 // the mission type (Привычка/Результат/Аскеза); mirror it in English as H/R/V.
 const STEP_LETTER_EN = { 'П':'H', 'Р':'R', 'А':'V' };
@@ -1683,6 +1839,7 @@ function closeMerchOrder(){
 }
 
 async function submitMerchOrder(){
+  if (!isAge18Confirmed()) { requireAge18ThenRun(submitMerchOrder); return; }
   const f = state.merch.orderForm;
   if(!f) return;
   const item = state.merch.items.find(i=>i.id===f.itemId);
@@ -2214,15 +2371,7 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 9 · Привычка','Step 9 · Habit')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      <div class="stack">
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('confirm',{replace:true})">
-          <span> Apple Pay</span><span class="hint">→</span>
-        </div>
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('confirm',{replace:true})">
-          <span>${tr(' Карта · ЮKassa',' Card · YooKassa')}</span><span class="hint">→</span>
-        </div>
-      </div>
-      ${state.form.boosts.stake ? `<p class="hint" style="margin-top:14px;">${tr('Отдельно сохраним карту для усиления обещания — спишется один раз, только при провале.','We\'ll separately save a card to back up your promise — it\'s charged once, only if you fail.')}</p>`:''}
+      ${paymentCard('habit', !!state.form.boosts.stake)}
     `, {step:'11П'});
   },
 
@@ -2907,15 +3056,7 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 11 · Результат','Step 11 · Result')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      <div class="stack">
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('rConfirm',{replace:true})">
-          <span> Apple Pay</span><span class="hint">→</span>
-        </div>
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('rConfirm',{replace:true})">
-          <span>${tr(' Карта · ЮKassa',' Card · YooKassa')}</span><span class="hint">→</span>
-        </div>
-      </div>
-      ${state.result.boosts.stake ? `<p class="hint" style="margin-top:14px;">${tr('Отдельно сохраним карту для усиления обещания — спишется один раз, только при провале.','We\'ll separately save a card to back up your promise — it\'s charged once, only if you fail.')}</p>`:''}
+      ${paymentCard('result', !!state.result.boosts.stake)}
     `, {step:'12Р'});
   },
 
@@ -3078,15 +3219,47 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Ascesa')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      <div class="stack">
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('aConfirm',{replace:true})">
-          <span> Apple Pay</span><span class="hint">→</span>
-        </div>
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="go('aConfirm',{replace:true})">
-          <span>${tr(' Карта · ЮKassa',' Card · YooKassa')}</span><span class="hint">→</span>
-        </div>
-      </div>
+      ${paymentCard('askeza', false)}
     `, {step:'8А'});
+  },
+
+  ageGate(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Перед оплатой','Before checkout')}</div>
+      <h1>${tr('Подтверди возраст','Confirm your age')}</h1>
+      <p class="lead">${tr('ТЯГА принимает платежи, поэтому нам нужно подтверждение, что тебе есть 18 лет.','ТЯГА processes real payments, so we need to confirm you\'re 18 or older.')}</p>
+      <button class="btn primary block" style="margin-top:18px;" onclick="confirmAge18()">${tr('Мне есть 18 лет — продолжить','I\'m 18 or older — continue')}</button>
+      <button class="btn ghost block" style="margin-top:10px;" onclick="back()">${tr('Назад','Back')}</button>
+    `, {step:'18+'});
+  },
+
+  awaitingPayment(){
+    const p = state.payment || {};
+    const kindLabel = PAYMENT_KIND_CONFIG[p.kind] ? PAYMENT_KIND_CONFIG[p.kind].label() : '';
+    let body;
+    if (p.status === 'succeeded') {
+      body = `<p class="lead">${tr('Оплата прошла — переходим дальше.','Payment went through — moving on.')}</p>`;
+    } else if (p.status === 'canceled') {
+      body = `<p class="lead">${tr('Платёж отменён или не прошёл.','The payment was canceled or failed.')}</p>
+        <button class="btn primary block" style="margin-top:14px;" onclick="doInitiatePayment('${p.kind}')">${tr('Попробовать снова','Try again')}</button>
+        <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
+    } else if (p.status === 'timeout') {
+      body = `<p class="lead">${tr('Не видим подтверждения оплаты уже 2 минуты.','We haven\'t seen a confirmed payment for 2 minutes.')}</p>
+        <button class="btn primary block" style="margin-top:14px;" onclick="recheckPaymentNow()">${tr('Проверить ещё раз','Check again')}</button>
+        <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
+    } else if (p.status === 'error') {
+      body = `<p class="lead">${tr('Не получилось создать платёж.','Couldn\'t create the payment.')} ${p.error==='age_not_confirmed' ? tr('Нужно подтвердить возраст.','Age needs to be confirmed.') : (p.error==='yookassa_not_configured' ? tr('Оплата ещё не подключена — это тестовая сборка.','Payment isn\'t connected yet — this is a test build.') : '')}</p>
+        <button class="btn ghost block" style="margin-top:14px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
+    } else {
+      body = `<p class="lead">${tr('Ждём подтверждения оплаты — не закрывай приложение.','Waiting for payment confirmation — keep the app open.')}</p>
+        <button class="btn ghost block" style="margin-top:14px;" onclick="recheckPaymentNow()">${tr('Я оплатил — проверить','I paid — check now')}</button>
+        <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('Отменить','Cancel')}</button>`;
+    }
+    return screenShell(`
+      <div class="eyebrow">${kindLabel}</div>
+      <h1>${tr('Оплата','Payment')}</h1>
+      ${body}
+    `, {step:tr('Оплата','Payment'), back:false});
   },
 
   aConfirm(){
