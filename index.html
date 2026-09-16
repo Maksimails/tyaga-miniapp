@@ -1060,6 +1060,10 @@ const state = {
   lang: 'ru',
   settings: { notifyOn: false },
   age18Confirmed: false,   // real gate lives server-side; this just skips re-asking on this device
+  // Stub UI hook only — the actual granting logic (quiz completion reward)
+  // is a separate, not-yet-built feature. When true, the free-tier upsell
+  // screen shows a banner saying the next mission's full tier is free.
+  freeMissionToken: false,
   payment: null,           // { kind, status: creating|awaiting|succeeded|canceled|timeout|error, error, paymentId }
   mentorInfoFor: null,
   ticketsTab: 'own',
@@ -1081,11 +1085,14 @@ const state = {
     theme: null,
     themeOther: '',
     duration: null, // {label, days, price}
+    tier: null, // 'free' | 'full' — set by tierChoice, drives the free-tier fast path
     freq: null,
     freqDays: [],
     freqEvent: '',
     activityTime: [],
     whenWhere: '',
+    freeWhen: '', // lightweight "when" field collected only on the merged free-tier screen (habitGoal3P)
+    proofType: null, // 'video' | 'photo' | 'text' — collected on habitGoal3P (free) or defaults on the paid path
     psychotype: null,
     supportStyle: null,
     toneSupport: 40,
@@ -1107,6 +1114,10 @@ const state = {
     milestones: [], milestoneDraft: '', milestoneDraftDate: '',
     psychotype: null, supportStyle: null, toneSupport: 40, trust: 60, pride: null,
     meaning: '', mentor: null,
+    duration: null, // {free:true} when the free tier forces the program price to 0 — Result has no real tariff/duration picker, this is a price-override flag only
+    tier: null, // 'free' | 'full' — set by rTierChoice, drives the free-tier fast path
+    freeWhen: '', // lightweight "when" field collected only on the merged free-tier screen (rGoal3P)
+    proofType: null, // 'video' | 'photo' | 'text' — collected on rGoal3P (free) or defaults on the paid path
     boosts: { aiAnalysis:false, stake:null, public:false, secondChance:false },
     videoDone: false,
     missionCreated: false
@@ -1116,10 +1127,11 @@ const state = {
     meaning: '',
     psychotype: null,
     duration: null, // {label, days}
+    tier: null, // 'free' | 'full' — set by aTierChoice, drives the free-tier fast path
     customDeadline: '',
     videoDone: false, videoSkipped: false,
     mentor: null,
-    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' },
+    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null },
     missionCreated: false
   },
   quiz: {},
@@ -1585,6 +1597,26 @@ const PROOF_RULES = {
   'Аскеза': { video:true, photo:false, text:true, note:{ru:'Достаточно честной текстовой отметки, видео — по желанию.',en:'An honest text check-in is enough; video is optional.'} },
 };
 function proofRulesFor(type){ return PROOF_RULES[type] || PROOF_RULES['Привычка']; }
+// Shared bits for the merged free-tier "Что ты хочешь получить?" screens
+// (habitGoal3P / rGoal3P) — a lightweight time-of-day picker plus a proof-type
+// chip row built from PROOF_RULES, instead of rebuilding the full paid-path
+// frequency/trigger picker or a new proof-rules system from scratch.
+const FREE_WHEN_OPTIONS = ['Утро','День','Вечер','Ночь'];
+function setFreeWhen(target, v){ (target==='result'?state.result:state.form).freeWhen = v; render(); }
+function setProofType(target, v){ (target==='result'?state.result:state.form).proofType = v; render(); }
+function proofTypeChipsHtml(target, missionType){
+  const st = target==='result' ? state.result : state.form;
+  const rules = proofRulesFor(missionType);
+  const opts = [];
+  if(rules.video) opts.push(['video', tr('Видео','Video')]);
+  if(rules.photo) opts.push(['photo', tr('Фото','Photo')]);
+  if(rules.text) opts.push(['text', tr('Текст','Text')]);
+  return `<div class="row-gap">${opts.map(([v,l])=>chip(l, st.proofType===v, `setProofType('${target}','${v}')`)).join('')}</div>`;
+}
+function freeWhenChipsHtml(target){
+  const st = target==='result' ? state.result : state.form;
+  return `<div class="row-gap">${FREE_WHEN_OPTIONS.map(o=>chip(label(o), st.freeWhen===o, `setFreeWhen('${target}','${o}')`)).join('')}</div>`;
+}
 
 // Lightweight "relatable to this viewer" ranking: posts whose mission type
 // matches a type the viewer has launched (active or historical) bubble up,
@@ -2161,7 +2193,7 @@ const SCREENS = {
       <div class="eyebrow">${tr('Шаг 1','Step 1')}</div>
       <h1>${tr('Добро пожаловать в ЦУЦ','Welcome to Mission Control')}</h1>
       <p class="lead" style="margin-top:-6px;">${tr('(Центр управления целями)','(Goal Mission Control)')}</p>
-      <button class="btn primary block" style="margin:14px 0 18px;font-size:16px;padding:16px;" onclick="go('typeSelect')">${tr('Выбрать свою цель','Choose your own goal')}</button>
+      <button class="btn primary block" style="margin:14px 0 18px;font-size:17px;padding:18px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-weight:900;font-style:italic;" onclick="go('typeSelect')">${tr('Выбрать свою цель','Choose your own goal')}</button>
       <div class="cuc-tabs">
         <div class="cuc-tab ${tab==='own'?'active':''}" onclick="setTicketsTab('own')">${tr('Готовые миссии','Ready-made missions')}</div>
         <div class="cuc-tab ${tab==='radar'?'active':''}" onclick="setTicketsTab('radar')">${tr('Зона','Zone')}<br>${tr('Радара','Radar')}</div>
@@ -2193,16 +2225,16 @@ const SCREENS = {
       <div class="eyebrow">${tr('Шаг 1','Step 1')}</div>
       <h1>${tr('Какую миссию запускаем?','Which mission are we launching?')}</h1>
       <div class="stack" style="margin-top:14px;">
-        <div class="card" style="cursor:pointer;" onclick="go('habitBasics')">
-          <div style="font-weight:700;font-size:15px;">${tr('Привычка','Habit')}</div>
+        <div class="card" style="cursor:pointer;" onclick="go('tierChoice')">
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Привычка','Habit')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily Repetitive Actions<br>Build a Habit')}</div>
         </div>
-        <div class="card" style="cursor:pointer;" onclick="go('rGoal')">
-          <div style="font-weight:700;font-size:15px;">${tr('Результат','Result')}</div>
+        <div class="card" style="cursor:pointer;" onclick="go('rTierChoice')">
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Результат','Result')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach Some Point in the Future<br>Achieve a Specific Result')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('aGoal')">
-          <div style="font-weight:700;font-size:15px;">${tr('Аскеза','Ascesa')}</div>
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Аскеза','Ascesa')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism<br>Willingly Give Up a Habit')}</div>
         </div>
       </div>
@@ -2221,6 +2253,22 @@ const SCREENS = {
       <p class="hint" style="margin-top:0;">${tf(t.reportDefault)} — ${tr('зафиксирован для этой программы.','fixed for this program.')}</p>
       <button class="btn primary block" style="margin-top:22px;" onclick="go('meaning')">${tr('Далее','Next')}</button>
     `, {step:'2.1'});
+  },
+
+  tierChoice(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Как начнём?','How should we start?')}</h1>
+      ${tierChoiceBody("chooseFreeTier('habit')", "go('habitBasics')")}
+    `);
+  },
+
+  tierUpsell(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Бесплатный старт','Free start')}</h1>
+      ${tierUpsellBody('habit')}
+    `);
   },
 
   habitBasics(){
@@ -2246,11 +2294,63 @@ const SCREENS = {
       <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.form.theme===t, `setTheme('${t}')`)).join('')}</div>
       ${state.form.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.form.themeOther}" oninput="state.form.themeOther=this.value; syncBasics()" />` : ''}
 
+      ${state.form.tier!=='free' ? `
       <h2>${tr('Длительность','Duration')}</h2>
       <p class="hint" style="margin:-2px 0 10px;">${tr('Научно обоснованные минимальные сроки формирования привычки','Scientifically grounded minimum timeframes for building a habit')}</p>
       <div class="row-gap">${TARIFFS.map(t=>chip(tf(t.label)+' · '+t.price+'₽', state.form.duration&&state.form.duration.days===t.days, `setDuration(${t.days})`)).join('')}</div>
+      ` : `
+      <p class="hint" style="margin-top:10px;">${tr('Бесплатный формат: 7 дней, наставник — Космонавт.','Free format: 7 days, mentor — Cosmonaut.')}</p>
+      `}
 
       <button class="btn primary block" id="btnBasics" style="margin-top:22px;" ${canContinueBasics()?'':'disabled'} onclick="go('optimize')">${tr('Далее','Next')}</button>
+    `, {step:'3П'});
+  },
+
+  // Free-tier merged screen: combines the original "3П" goal-identification
+  // screen (habitBasics) with the "why does this matter" meaning box that
+  // used to live on the separate "5П" meaning screen. Free users land here
+  // straight from chooseFreeTier('habit') and skip the "optimize" (4П) and
+  // the old "meaning" (5П) screens entirely, going straight to the video
+  // promise capture. The paid path is untouched: it still uses the original
+  // habitBasics -> optimize -> meaning sequence below.
+  habitGoal3P(){
+    const chips = ['Бегать по утрам','Читать','Пить воду','Медитировать','Отжиматься до отказа','Спать до 23:00','Не пить кофе после 15:00','Учить английский'];
+    const customMode = state.form.habitInputMode==='custom';
+    return screenShell(`
+      <div class="eyebrow">${tr('Шаг 2 · Привычка','Step 2 · Habit')}</div>
+      <h1>${tr('Что ты хочешь получить?','What do you want to achieve?')}</h1>
+
+      <h2>${tr('Какую привычку мы формируем?','Which habit are we building?')}</h2>
+      <p class="hint" style="margin:-2px 0 2px;">${tr('Первый и самый главный шаг','The first and most important step')}</p>
+      <p class="hint" style="margin:0 0 10px;">${tr('Постарайся сделать его максимально детальным','Try to make it as detailed as possible')}</p>
+      ${customMode ? `
+        <textarea rows="2" placeholder="${tr('Например: бегать по утрам 20 минут, сразу после будильника','E.g.: go running for 20 minutes right after the alarm')}" oninput="state.form.habitCustom=this.value; syncGoal3P()">${state.form.habitCustom}</textarea>
+        <button class="btn ghost small" style="margin-top:8px;" onclick="setHabitMode('chips')">${tr('← Выбрать из вариантов','← Pick from options')}</button>
+      ` : `
+        <div class="row-gap">${chips.map(c=>chip(label(c), state.form.habitName===c, `setHabit('${c}')`)).join('')}</div>
+        <button class="btn ghost small" style="margin-top:8px;" onclick="setHabitMode('custom')">${tr('Свой вариант','My own answer')}</button>
+      `}
+
+      <h2>${tr('Тематика','Category')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('Отношение к сфере жизни','Attitude toward this area of life')}</p>
+      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.form.theme===t, `setTheme('${t}')`)).join('')}</div>
+      ${state.form.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.form.themeOther}" oninput="state.form.themeOther=this.value; syncGoal3P()" />` : ''}
+
+      <p class="hint" style="margin-top:10px;">${tr('Бесплатный формат: 21 день, наставник — Космонавт.','Free format: 21 days, mentor — Cosmonaut.')}</p>
+
+      <h2 style="margin-top:16px;">${tr('А для чего тебе конкретно эта цель?','And specifically, why does this goal matter to you?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('Что изменится, когда дойдёшь до цели? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you reach your goal? Will you respect or love yourself more? Why?')}</p>
+      <textarea rows="3" placeholder="${tr('Опиши своими словами','Describe it in your own words')}" oninput="state.form.meaning=this.value; syncGoal3P()">${state.form.meaning}</textarea>
+
+      <h2 style="margin-top:16px;">${tr('Когда?','When?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('В какое время дня это обычно будет происходить?','What time of day will this usually happen?')}</p>
+      ${freeWhenChipsHtml('form')}
+
+      <h2 style="margin-top:16px;">${tr('Каким пруфом подтвердишь?','What kind of proof will you show?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('Как будешь подтверждать выполнение.','How you\'ll confirm you did it.')}</p>
+      ${proofTypeChipsHtml('form','Привычка')}
+
+      <button class="btn primary block" id="btnGoal3P" style="margin-top:22px;" ${canContinueGoal3P()?'':'disabled'} onclick="goToWizardVideo('video','form')">${tr('Далее','Next')}</button>
     `, {step:'3П'});
   },
 
@@ -2331,7 +2431,7 @@ const SCREENS = {
   },
 
   savingScreen(){
-    setTimeout(()=>go('mentor',{replace:true}), 900);
+    setTimeout(()=>go(state.form.tier==='free' ? 'tierUpsell' : 'mentor',{replace:true}), 900);
     return screenShell(`
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;gap:16px;">
         <div class="dot" style="animation:pulse 1s infinite;width:8px;height:8px;border-radius:50%;background:#fff;"></div>
@@ -2986,6 +3086,56 @@ const SCREENS = {
     `, {step:'5Р'});
   },
 
+  rTierChoice(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Как начнём?','How should we start?')}</h1>
+      ${tierChoiceBody("chooseFreeTier('result')", "go('rGoal')")}
+    `);
+  },
+
+  rTierUpsell(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Бесплатный старт','Free start')}</h1>
+      ${tierUpsellBody('result')}
+    `);
+  },
+
+  // Free-tier merged screen (mirrors habitGoal3P): the goal/theme description
+  // plus "why it matters" meaning, plus a lightweight "when" and "proof type"
+  // pick — all in one screen, straight from chooseFreeTier('result'). The
+  // paid path is untouched: it still goes rGoal -> rCriteria -> rMilestones
+  // -> rMeaning -> video.
+  rGoal3P(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Шаг 2 · Результат','Step 2 · Result')}</div>
+      <h1>${tr('Что ты хочешь получить?','What do you want to achieve?')}</h1>
+      <p class="hint" style="margin:-2px 0 2px;">${tr('Первый и самый главный шаг.','The first and most important step.')}</p>
+      <p class="hint" style="margin:0 0 10px;">${tr('Постарайся описать цель как можно детальнее. Это заметно поможет до неё дойти.','Try to describe your goal in as much detail as possible. It noticeably helps you get there.')}</p>
+      <textarea rows="3" placeholder="${tr('Например: переехать в новую квартиру до конца года','E.g.: move to a new apartment by the end of the year')}" oninput="state.result.goal=this.value; syncRGoal3P()">${state.result.goal}</textarea>
+      <h2>${tr('Тематика','Category')}</h2>
+      <div class="row-gap">${['Спорт','Работа','Учёба','Отношения','Творчество','Финансы','Личное','Здоровье','Благотворительность','Другое'].map(t=>chip(label(t), state.result.theme===t, `setResultTheme('${t}')`)).join('')}</div>
+      ${state.result.theme==='Другое' ? `<input type="text" style="margin-top:10px;" placeholder="${tr('Опиши свою тематику','Describe your category')}" value="${state.result.themeOther}" oninput="state.result.themeOther=this.value; syncRGoal3P()" />` : ''}
+
+      <p class="hint" style="margin-top:10px;">${tr('Бесплатный формат: 21 день, наставник — Космонавт.','Free format: 21 days, mentor — Cosmonaut.')}</p>
+
+      <h2 style="margin-top:16px;">${tr('А для чего тебе конкретно эта цель?','And specifically, why does this goal matter to you?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('Что изменится, когда дойдёшь до цели? Начнёшь ли себя больше уважать или любить? Почему?','What will change once you reach your goal? Will you respect or love yourself more? Why?')}</p>
+      <textarea rows="3" placeholder="${tr('Опиши своими словами','Describe it in your own words')}" oninput="state.result.meaning=this.value; syncRGoal3P()">${state.result.meaning}</textarea>
+
+      <h2 style="margin-top:16px;">${tr('Когда?','When?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('В какое время дня это обычно будет происходить?','What time of day will this usually happen?')}</p>
+      ${freeWhenChipsHtml('result')}
+
+      <h2 style="margin-top:16px;">${tr('Каким пруфом подтвердишь?','What kind of proof will you show?')}</h2>
+      <p class="hint" style="margin:-2px 0 10px;">${tr('Как будешь подтверждать выполнение.','How you\'ll confirm you did it.')}</p>
+      ${proofTypeChipsHtml('result','Результат')}
+
+      <button class="btn primary block" id="btnRGoal3P" style="margin-top:22px;" ${canContinueRGoal3P()?'':'disabled'} onclick="goToWizardVideo('rVideo','result')">${tr('Далее','Next')}</button>
+    `, {step:'2Р'});
+  },
+
   rVideo(){
     const habit = state.result.goal || '…';
     const deadline = state.result.deadline || '…';
@@ -3001,7 +3151,7 @@ const SCREENS = {
   },
 
   rSaving(){
-    setTimeout(()=>go('rTariff',{replace:true}), 900);
+    setTimeout(()=>go(state.result.tier==='free' ? 'rTierUpsell' : 'rTariff',{replace:true}), 900);
     return screenShell(`
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;gap:16px;">
         <div class="dot" style="animation:pulse 1s infinite;width:8px;height:8px;border-radius:50%;background:#fff;"></div>
@@ -3141,6 +3291,28 @@ const SCREENS = {
     `, {step:'2А'});
   },
 
+  // aTierChoice/aTierUpsell are no longer routed to from anywhere — Ascesis
+  // has no paid tariff (see aMentor's copy below: "У Аскезы нет платного
+  // тарифа"), so forcing a free/paid fork here was contradictory. Removed
+  // from the live flow per product direction; left defined but dead rather
+  // than deleted outright, since chooseFreeTier('askeza')/openFullTier('askeza')
+  // still reference them and nothing currently calls those either.
+  aTierChoice(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Как начнём?','How should we start?')}</h1>
+      ${tierChoiceBody("chooseFreeTier('askeza')", "go('aDuration')")}
+    `);
+  },
+
+  aTierUpsell(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Формат миссии','Mission format')}</div>
+      <h1>${tr('Бесплатный старт','Free start')}</h1>
+      ${tierUpsellBody('askeza')}
+    `);
+  },
+
   aDuration(){
     const minDate = new Date(Date.now()+21*86400000).toISOString().slice(0,10);
     return screenShell(`
@@ -3173,6 +3345,8 @@ const SCREENS = {
   },
 
   aSaving(){
+    // Ascesis has no free/paid fork (see aTierChoice's comment) — always
+    // proceeds to aMentor now, regardless of state.askeza.tier.
     setTimeout(()=>go('aMentor',{replace:true}), 900);
     return screenShell(`
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;gap:16px;">
@@ -3217,7 +3391,7 @@ const SCREENS = {
         <button class="btn ghost small" style="margin-bottom:10px;" onclick="addWitness()">${tr('+ Ещё свидетель','+ Another witness')}</button>
       ` : ''}
       <div class="toggle-row">
-        <div><div class="t-title">${tr('Система','System')}</div><div class="t-desc">${tr('Триггер-трекинг вместо просто «держаться» · +400₽','Trigger tracking instead of just “holding on” · +400₽')}</div></div>
+        <div><div class="t-title">${tr('Система','System')}</div><div class="t-desc">${tr('На основе науки о привычках: направленные медитации, видео с мастерами, лучшие мировые практики и опросник о твоём опыте и настрое · +400₽','Grounded in the science of habits: guided meditations, video sessions with masters, best worldwide practices, plus a quiz on your past experience and mindset · +400₽')}</div></div>
         <div class="switch ${state.askeza.boosts.system?'on':''}" onclick="toggleAskezaBoost('system')"><i></i></div>
       </div>
       ${state.askeza.boosts.system ? `
@@ -3229,8 +3403,27 @@ const SCREENS = {
         </div>
       ` : ''}
       <div class="toggle-row">
-        <div><div class="t-title">${tr('Поддержка','Support')}</div><div class="t-desc">${tr('Более внимательное сопровождение · +400₽ · формат ещё уточняется','More attentive support · +400₽ · format still being finalized')}</div></div>
+        <div><div class="t-title">${tr('Поддержка','Support')}</div><div class="t-desc">${tr('Живое участие человека: крепкая платформа плюс быстрые звонки и сообщения от Департамента Заботы · +400₽','Real human involvement: a solid platform plus quick calls and messages from the Care Department · +400₽')}</div></div>
         <div class="switch ${state.askeza.boosts.support?'on':''}" onclick="toggleAskezaBoost('support')"><i></i></div>
+      </div>
+      <div class="toggle-row">
+        <div><div class="t-title">${tr('Изменить сроки','Alter the dates')}</div><div class="t-desc">${tr('Право сдвинуть или продлить даты миссии прямо по ходу дела · +300₽','The right to shift or extend the mission\'s dates mid-way · +300₽')}</div></div>
+        <div class="switch ${state.askeza.boosts.alterDates?'on':''}" onclick="toggleAskezaBoost('alterDates')"><i></i></div>
+      </div>
+      <div class="toggle-row">
+        <div><div class="t-title">${tr('Разбор триггеров','Trigger analysis')}</div><div class="t-desc">${tr('ИИ разбирает твои отметки и находит самые рискованные моменты и ситуации · +300₽','AI reviews your check-ins and flags your riskiest moments and situations · +300₽')}</div></div>
+        <div class="switch ${state.askeza.boosts.triggerAnalysis?'on':''}" onclick="toggleAskezaBoost('triggerAnalysis')"><i></i></div>
+      </div>
+      <div class="toggle-row">
+        <div><div class="t-title">${tr('Второй шанс','Second chance')}</div><div class="t-desc">${tr('Один пропущенный день не обнулит серию · +300₽','One missed day won\'t break your streak · +300₽')}</div></div>
+        <div class="switch ${state.askeza.boosts.secondChance?'on':''}" onclick="toggleAskezaBoost('secondChance')"><i></i></div>
+      </div>
+      <div class="card" style="margin-bottom:2px;">
+        <div class="t-title">${tr('Ставка на себя','Bet on yourself')}</div>
+        <div class="t-desc" style="margin-bottom:10px;">${tr('Заморозь сумму — вернётся тебе при успехе, сгорит при провале.','Freeze an amount — you get it back on success, lose it on failure.')}</div>
+        <div class="row-gap">${[1000,3000,5000,10000].map(s=>chip(s+'₽', state.askeza.boosts.selfStake===s, `setAskezaSelfStake(${s})`)).join('')}
+          ${chip(label('Без ставки'), !state.askeza.boosts.selfStake, `setAskezaSelfStake(null)`)}
+        </div>
       </div>
       <button class="btn primary block" style="margin-top:16px;" onclick="totalAskezaPrice()>0 ? go('aSummary') : go('aConfirm')">${tr('Далее','Next')}</button>
     `, {step:'7А'});
@@ -3246,8 +3439,13 @@ const SCREENS = {
         <div class="summary-line"><span class="k">${tr('Свидетель','Witness')}</span><span class="v">${state.askeza.boosts.witnesses?'+300₽':tr('нет','none')}</span></div>
         <div class="summary-line"><span class="k">${tr('Система','System')}</span><span class="v">${state.askeza.boosts.system?'+400₽':tr('нет','none')}</span></div>
         <div class="summary-line"><span class="k">${tr('Поддержка','Support')}</span><span class="v">${state.askeza.boosts.support?'+400₽':tr('нет','none')}</span></div>
+        <div class="summary-line"><span class="k">${tr('Изменить сроки','Alter dates')}</span><span class="v">${state.askeza.boosts.alterDates?'+300₽':tr('нет','none')}</span></div>
+        <div class="summary-line"><span class="k">${tr('Разбор триггеров','Trigger analysis')}</span><span class="v">${state.askeza.boosts.triggerAnalysis?'+300₽':tr('нет','none')}</span></div>
+        <div class="summary-line"><span class="k">${tr('Второй шанс','Second chance')}</span><span class="v">${state.askeza.boosts.secondChance?'+300₽':tr('нет','none')}</span></div>
+        <div class="summary-line"><span class="k">${tr('Ставка на себя','Bet on yourself')}</span><span class="v">${state.askeza.boosts.selfStake ? state.askeza.boosts.selfStake+'₽' : tr('нет','none')}</span></div>
         <div class="total-line"><span>${tr('Итого','Total')}</span><span>${totalAskezaPrice()}₽</span></div>
       </div>
+      <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
       <button class="btn primary block" style="margin-top:18px;" onclick="go('aPayment')">${totalAskezaPrice()>0 ? tr('Оплатить','Pay')+' '+totalAskezaPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'8А'});
   },
@@ -3894,6 +4092,8 @@ function syncPrimary(){
 }
 function syncBasics(){ const b=document.getElementById('btnBasics'); if(b) b.disabled=!canContinueBasics(); }
 function syncOptimize(){ const b=document.getElementById('btnOptimize'); if(b) b.disabled=!canContinueOptimize(); }
+function canContinueGoal3P(){ return canContinueBasics() && !!state.form.meaning.trim(); }
+function syncGoal3P(){ const b=document.getElementById('btnGoal3P'); if(b) b.disabled=!canContinueGoal3P(); }
 
 function openTicket(id){
   const t = findAnyTicket(id);
@@ -3939,6 +4139,98 @@ function stopWizardMedia(){
   try { if (wizStream) wizStream.getTracks().forEach(t=>t.stop()); } catch(e){}
   wizStream = null; wizRecorder = null;
   if (wizTimerHandle) { clearInterval(wizTimerHandle); wizTimerHandle = null; }
+}
+/* ==== Free tier / upsell — shared across the Habit/Result/Ascesis wizards ====
+ * A new "tier choice" step sits right before each wizard's duration/tariff
+ * screen (habitBasics' duration chips / rTariff / aDuration). Choosing "Full
+ * mission" changes nothing — same screens, same order, as before. Choosing
+ * "Free" forces duration+mentor+boosts to fixed no-cost values so the
+ * existing zero-amount payment short-circuit in doInitiatePayment/paymentCard
+ * (see PAYMENT_KIND_CONFIG) takes it straight to mission creation — no
+ * separate free-mission code path. kind is 'habit' | 'result' | 'askeza',
+ * matching PAYMENT_KIND_CONFIG's keys. */
+function chooseFreeTier(kind){
+  if(kind==='result'){
+    state.result.tier = 'free';
+    state.result.duration = { free:true, days:21 };
+    state.result.mentor = { name:'Космонавт', price:0 };
+    state.result.boosts = { aiAnalysis:false, stake:null, public:false, secondChance:false };
+    state.result.proofType = 'video';
+    go('rGoal3P');
+  } else if(kind==='askeza'){
+    state.askeza.tier = 'free';
+    state.askeza.duration = { label: tr('21 день — бесплатно','21 days — free'), days:21, custom:false, free:true };
+    state.askeza.mentor = { name:'Космонавт', price:0 };
+    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null };
+    goToWizardVideo('aVideo','askeza');
+  } else {
+    state.form.tier = 'free';
+    state.form.duration = { label: tr('21 день — бесплатно','21 days — free'), days:21, price:0, free:true };
+    state.form.mentor = { name:'Космонавт', price:0 };
+    state.form.boosts = { stake:null, public:false };
+    state.form.proofType = 'video';
+    go('habitGoal3P');
+  }
+}
+// "Открыть всё сейчас" on the upsell screen — un-forces everything and drops
+// the user back onto that wizard's normal duration/tariff screen, keeping
+// the title/meaning/etc. already entered (nothing else is reset).
+function openFullTier(kind){
+  if(kind==='result'){
+    state.result.tier = 'full';
+    state.result.duration = null;
+    state.result.mentor = null;
+    state.result.boosts = { aiAnalysis:false, stake:null, public:false, secondChance:false };
+    go('rTariff');
+  } else if(kind==='askeza'){
+    state.askeza.tier = 'full';
+    state.askeza.duration = null;
+    state.askeza.mentor = null;
+    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null };
+    go('aDuration');
+  } else {
+    state.form.tier = 'full';
+    state.form.duration = null;
+    state.form.mentor = null;
+    state.form.boosts = { stake:null, public:false };
+    go('habitBasics');
+  }
+}
+function tierChoiceBody(freeOnclick, fullOnclick){
+  return `
+    <p class="lead">${tr('Можно попробовать бесплатно и открыть остальное позже — или сразу взять полную миссию.','You can try it for free and unlock the rest later — or open the full mission right away.')}</p>
+    <div class="stack" style="margin-top:14px;">
+      <div class="card" style="cursor:pointer;" onclick="${freeOnclick}">
+        <div style="font-weight:700;font-size:15px;">${tr('Бесплатно','Free')}</div>
+        <div class="hint" style="margin-top:4px;">${tr('Видео-обещание + наставник Космонавт. Без ставки и без публичного режима.','A video promise + Cosmonaut as mentor. No stake, no public mode.')}</div>
+      </div>
+      <div class="card" style="cursor:pointer;" onclick="${fullOnclick}">
+        <div style="font-weight:700;font-size:15px;">${tr('Полная миссия','Full mission')}</div>
+        <div class="hint" style="margin-top:4px;">${tr('Выбор срока, любой наставник, ставка и публичный режим.','Pick the length, any mentor, a stake, and public mode.')}</div>
+      </div>
+    </div>
+  `;
+}
+// Prominent banner for the (not-yet-built) quiz-reward token — stub UI hook
+// only, see state.freeMissionToken.
+function freeTokenBanner(){
+  if(!state.freeMissionToken) return '';
+  return `<div class="activate-banner"><div class="txt">${tr('У тебя есть токен — следующая миссия full blast бесплатно','You have a token — your next mission is free, full blast')}</div></div>`;
+}
+function tierUpsellBody(kind){
+  return `
+    ${freeTokenBanner()}
+    <p class="lead">${tr('Бесплатная версия уже включает главное — видео-обещание и наставника. Остальное можно открыть в любой момент.','The free version already includes the essentials — a video promise and a mentor. You can unlock the rest any time.')}</p>
+    <h2>${tr('Уже включено','Already included')}</h2>
+    <div class="toggle-row"><div><div class="t-title">${tr('Видео-обещание','Video promise')}</div><div class="t-desc">${tr('Записано и сохранено','Recorded and saved')}</div></div></div>
+    <div class="toggle-row"><div><div class="t-title">${tr('Наставник Космонавт','Cosmonaut mentor')}</div><div class="t-desc">${tr('Бесплатно всегда','Always free')}</div></div></div>
+    <h2 style="margin-top:16px;">${tr('Заблокировано','Locked')}</h2>
+    <div class="toggle-row disabled"><div><div class="t-title">${tr('Другие наставники','Other mentors')}</div></div></div>
+    <div class="toggle-row disabled"><div><div class="t-title">${tr('Публичный режим','Public mode')}</div></div></div>
+    <div class="toggle-row disabled"><div><div class="t-title">${tr('Ставка / усиление обещания','Stake / boosted promise')}</div></div></div>
+    <button class="btn ghost block" style="margin-top:16px;" onclick="openFullTier('${kind}')">${tr('Открыть всё сейчас','Open everything now')}</button>
+    <button class="btn primary block" style="margin-top:10px;" onclick="initiatePayment('${kind}')">${tr('Начать бесплатно','Start for free')}</button>
+  `;
 }
 function goToWizardVideo(screen, target){
   const alreadyDone = target==='result' ? state.result.videoDone : target==='askeza' ? state.askeza.videoDone : state.form.videoDone;
@@ -4130,8 +4422,8 @@ function addMissionFromForm(){
 }
 function resetForm(){
   state.form = {
-    habitName:null, habitCustom:'', habitInputMode:'chips', theme:null, themeOther:'', duration:null,
-    freq:null, freqDays:[], freqEvent:'', activityTime:[], whenWhere:'',
+    habitName:null, habitCustom:'', habitInputMode:'chips', theme:null, themeOther:'', duration:null, tier:null,
+    freq:null, freqDays:[], freqEvent:'', activityTime:[], whenWhere:'', freeWhen:'', proofType:null,
     psychotype:null, supportStyle:null, toneSupport:40, persistence:60,
     meaning:'', mentor:null, boosts:{stake:null,public:false}, videoDone:false,
     profileExpanded:state.form.profileExpanded, fastTrack:false, ticketId:null, ticketGoal:'', ticketReport:'', missionCreated:false
@@ -4175,6 +4467,7 @@ function askezaDurationLabel(){
 }
 function setAskezaMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.askeza.mentor={name,price}; render(); }
 function toggleAskezaBoost(key){ state.askeza.boosts[key]=!state.askeza.boosts[key]; render(); }
+function setAskezaSelfStake(v){ state.askeza.boosts.selfStake=v; render(); }
 function setWitness(i,v){ state.askeza.boosts.witnessList[i]=v; }
 function addWitness(){ state.askeza.boosts.witnessList.push(''); render(); }
 function removeWitness(i){ state.askeza.boosts.witnessList.splice(i,1); if(!state.askeza.boosts.witnessList.length) state.askeza.boosts.witnessList=['']; render(); }
@@ -4193,6 +4486,10 @@ function totalAskezaPrice(){
   }
   if(state.askeza.boosts.system) sum += 400;
   if(state.askeza.boosts.support) sum += 400;
+  if(state.askeza.boosts.alterDates) sum += 300;
+  if(state.askeza.boosts.triggerAnalysis) sum += 300;
+  if(state.askeza.boosts.secondChance) sum += 300;
+  if(state.askeza.boosts.selfStake) sum += 0; // self-stake is frozen and returned on success, not added to purchase price
   return sum;
 }
 function addAskezaMissionFromForm(){
@@ -4212,10 +4509,10 @@ function resetAskezaForm(){
     goal:'', theme:null, themeOther:'',
     meaning:'',
     psychotype:null,
-    duration:null, customDeadline:'',
+    duration:null, tier:null, customDeadline:'',
     videoDone:false, videoSkipped:false,
     mentor:null,
-    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'' },
+    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null },
     missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
@@ -4229,6 +4526,8 @@ function canContinueRGoal(){
 function canContinueRCriteria(){
   return !!(state.result.criteria.trim() && state.result.deadline);
 }
+function canContinueRGoal3P(){ return canContinueRGoal() && !!state.result.meaning.trim(); }
+function syncRGoal3P(){ const b=document.getElementById('btnRGoal3P'); if(b) b.disabled=!canContinueRGoal3P(); }
 function setResultTheme(v){ state.result.theme=v; render(); }
 function setResultSupportStyle(v){ state.result.supportStyle=v; render(); }
 function setResultPride(v){ state.result.pride=v; render(); }
@@ -4248,6 +4547,10 @@ function removeMilestone(i){ state.result.milestones.splice(i,1); render(); }
 function syncR(){ const b=document.getElementById('btnR'); if(b) b.disabled = !(canContinueRGoal() && (state.screen!=='rCriteria'||canContinueRCriteria())); }
 
 function resultTariffPrice(){
+  // Free tier (chosen in rTierChoice) forces the program price to 0 so it
+  // rides the same zero-amount payment short-circuit as everything else —
+  // see PAYMENT_KIND_CONFIG / doInitiatePayment.
+  if(state.result.duration && state.result.duration.free) return 0;
   const n = state.result.milestones.length;
   return 990 + n*300;
 }
@@ -4276,7 +4579,7 @@ function resetResultForm(){
     criteria:'', deadline:'', how:'',
     milestones:[], milestoneDraft:'', milestoneDraftDate:'',
     psychotype:null, supportStyle:null, toneSupport:40, trust:60, pride:null,
-    meaning:'', mentor:null,
+    meaning:'', mentor:null, duration:null, tier:null, freeWhen:'', proofType:null,
     boosts:{ aiAnalysis:false, stake:null, public:false, secondChance:false },
     videoDone:false,
     missionCreated:false
