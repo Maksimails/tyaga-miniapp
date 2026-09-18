@@ -3876,16 +3876,18 @@ function stopIllumMedia(){
 async function enterIllumRecordScreen(){
   try {
     illumStream = await navigator.mediaDevices.getUserMedia({
+      // Deliberately NOT requesting aspectRatio/width here (see the
+      // "still zoomed" bug report after the first fix attempt) — asking
+      // iOS/WKWebView's getUserMedia for a specific aspectRatio (9/16) is
+      // itself what was triggering an aggressive software crop/zoom on some
+      // phones, not just a fallback-to-a-wider-mode issue. Requesting only
+      // facingMode lets the camera driver hand back its native, un-cropped
+      // feed; the 9:16 framing is applied purely in CSS on the <video>
+      // element (aspect-ratio:9/16; object-fit:cover — see wizardCamBlock /
+      // the cameraPreview markup), which crops for DISPLAY only and doesn't
+      // touch what the camera hardware itself captures.
       video: {
         facingMode: 'user',
-        // aspectRatio (not a separately-forced width+height pair) lets the
-        // browser pick/crop the camera's native mode itself. Forcing exact
-        // 1080x1920 used to make phones whose front camera can't hit that
-        // exact mode fall back to a wider (e.g. 4:3) stream, which object-fit:
-        // cover then cropped brutally into a tight, "zoomed-in" forehead shot
-        // instead of a normal Instagram-style framing.
-        aspectRatio: { ideal: 9/16 },
-        width: { ideal: 1080 },
         frameRate: { ideal: 30, max: 30 }
       },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -4180,10 +4182,12 @@ let wizStream = null, wizRecorder = null, wizChunks = [], wizBlob = null, wizTim
 async function enterWizardCam(){
   try {
     wizStream = await navigator.mediaDevices.getUserMedia({
-      // aspectRatio (not a forced width+height pair) — see enterIllumRecordScreen
-      // for why: forcing exact 1080x1920 made some phones fall back to a wider
-      // native mode, which object-fit:cover then cropped into a "zoomed in" shot.
-      video: { facingMode: 'user', aspectRatio: { ideal: 9/16 }, width: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } },
+      // No aspectRatio/width constraint — see enterIllumRecordScreen's comment
+      // for why: asking for a 9/16 aspectRatio was itself causing an
+      // aggressive software crop/zoom on some phones. Let the camera return
+      // its native feed; CSS (aspect-ratio:9/16 + object-fit:cover on
+      // #wizCamPreview) handles the 9:16 framing for display only.
+      video: { facingMode: 'user', frameRate: { ideal: 30, max: 30 } },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
     resetCameraZoomIfSupported(wizStream);
