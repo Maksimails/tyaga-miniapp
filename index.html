@@ -679,6 +679,12 @@ const PAYMENT_KIND_CONFIG = {
   askeza: { total: () => totalAskezaPrice(),   confirmScreen: 'aConfirm', label: () => tr('Аскеза','Ascesis') },
 };
 
+// TESTING-PERIOD KILL SWITCH: while true, doInitiatePayment skips checkout
+// entirely for every mission (habit/result/askeza), same as the existing
+// ₽0 short-circuit below, so testers can launch a mission without paying.
+// Flip to false to restore the real payment flow.
+const TESTING_FREE_MISSIONS = true;
+
 async function initiatePayment(kind){
   requireAge18ThenRun(() => doInitiatePayment(kind));
 }
@@ -687,12 +693,13 @@ async function doInitiatePayment(kind){
   const cfg = PAYMENT_KIND_CONFIG[kind];
   if (!cfg) return;
   const amount = cfg.total();
-  if (amount <= 0) {
+  if (amount <= 0 || TESTING_FREE_MISSIONS) {
     // Nothing to charge (e.g. a free fast-track "ready ticket" mission whose
     // duration carries price:0) — ЮKassa correctly refuses to create a ₽0
     // payment, which used to leave the user stuck on the payment screen with
     // no visible error. Skip checkout entirely and go straight to the
     // confirmation screen, which is what actually creates the mission.
+    // (TESTING_FREE_MISSIONS forces this path for every mission right now.)
     state.payment = null;
     go(cfg.confirmScreen);
     return;
@@ -1242,46 +1249,62 @@ const GATEWAY_MISSIONS = [
   { id:'u_sveta30', days:30, price:0, big:{ru:'30 дней',en:'30 days'}, author:'Света', participants:203, typeLine:{ru:'От пользователя · Аскеза',en:'From a user · Ascesa'}, tagline:{ru:'«Месяц без соцсетей после 22:00»',en:'"A month off social media after 10pm"'}, goalDefault:{ru:'Не заходить в соцсети после 22:00',en:'No social media after 10pm'}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
 ];
 const MENTORS_FREE = ['Космонавт', 'Баба Зина', 'Витя Убуд', 'Алина ДиЭнЭй'];
-const MENTORS_PAID = ['Ледокол', 'Мама Женя', 'Профессор', 'Товарищ Ли', 'DJ Midnight', 'Лиза Джаз'];
-// Only Cosmonaut is live for now — every other mentor renders locked
-// ("under construction") until their own persona/bot is built out.
-const MENTORS_ENABLED = ['Космонавт'];
-// The Telegram bot every mentor talks through right now. Deep link opens the
-// chat and pre-fills /start with a payload — Telegram requires the user to
-// press Start there at least once before the bot is allowed to message them,
-// and that's also exactly the moment the bot fires its onboarding script.
-const MENTOR_BOT_USERNAME = 'TYAGA_Cosmonaut_Bot';
-function mentorBotDeepLink(){ return 'https://t.me/' + MENTOR_BOT_USERNAME + '?start=activate'; }
-function openMentorChat(){
+const MENTORS_PAID = ['Леха P1x3l', 'Ледокол', 'Мама Женя', 'Профессор', 'Товарищ Ли', 'DJ Midnight', 'Лиза Джаз'];
+// Космонавт, Баба Зина and Леха P1x3l each have their own live Telegram bot
+// now — every other mentor still renders locked ("under construction")
+// until their own persona/bot is built out.
+const MENTORS_ENABLED = ['Космонавт', 'Баба Зина', 'Леха P1x3l'];
+// Each enabled mentor talks through their OWN Telegram bot (separate
+// identity, avatar and persona in Telegram — not just a mode switch inside
+// one shared bot). Deep link opens that mentor's chat and pre-fills /start
+// with a payload — Telegram requires the user to press Start there at least
+// once before the bot is allowed to message them, and that's also exactly
+// the moment the bot fires its onboarding script. Falls back to Космонавт's
+// bot for any mentor not yet in this map (shouldn't happen for an enabled
+// mentor, but keeps a locked/未-wired mentor from ever producing a dead link).
+const MENTOR_BOT_USERNAMES = {
+  'Космонавт': 'TYAGA_Cosmonaut_Bot',
+  'Баба Зина': 'TYAGA_Zi_Bot',
+  'Леха P1x3l': 'TYAGA_P1x3l_Bot',
+};
+function mentorBotUsername(mentorName){ return MENTOR_BOT_USERNAMES[mentorName] || MENTOR_BOT_USERNAMES['Космонавт']; }
+function mentorBotDeepLink(mentorName){ return 'https://t.me/' + mentorBotUsername(mentorName) + '?start=activate'; }
+function openMentorChat(mentorName){
+  const link = mentorBotDeepLink(mentorName || 'Космонавт');
   try{
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openTelegramLink){
-      window.Telegram.WebApp.openTelegramLink(mentorBotDeepLink());
+      window.Telegram.WebApp.openTelegramLink(link);
       return;
     }
   }catch(e){}
-  window.open(mentorBotDeepLink(), '_blank');
+  window.open(link, '_blank');
 }
 // Shown right after a mission is created — this is the hard hand-off moment:
 // the promise now exists, but the mentor can't actually say a word to the
 // user until they open the Telegram chat and press Start. Framed as a
 // required step, not an optional extra.
-function mentorActivationCard(){
+function mentorActivationCard(mentorName){
+  const name = mentorName || 'Космонавт';
   return `<div class="activate-card">
     <div class="tag">${tr('Обязательный шаг','Required step')}</div>
     <h3>${tr('Наставник ждёт тебя в Telegram','Your mentor is waiting in Telegram')}</h3>
     <p>${tr('Это твой первый контакт с ним. Нажми Start в чате — без этого он не сможет писать тебе, принимать отчёты и напоминать о цели.','This is your first contact with him. Tap Start in the chat — without it he can\'t message you, take your reports, or remind you about your goal.')}</p>
-    <button class="btn primary block" onclick="openMentorChat()">${tr('Открыть чат и нажать Start','Open chat and tap Start')}</button>
+    <button class="btn primary block" onclick="openMentorChat('${name}')">${tr('Открыть чат и нажать Start','Open chat and tap Start')}</button>
   </div>`;
 }
 // Persistent nag for anyone who skipped the card above — shown on Home until
 // state.profile.mentorActivated flips true (server-side, once the bot sees
-// their first message).
+// their first message). With more than one mentor bot now live, this points
+// at whichever mentor is on the user's most recent mission (state.missions
+// is kept newest-first — see addMissionFromForm's unshift) — a per-mission
+// activation flag is the more correct long-term fix, tracked separately.
 function mentorActivationBanner(){
   if (state.profile.mentorActivated) return '';
   if (!state.missions || !state.missions.length) return '';
+  const name = (state.missions[0] && state.missions[0].mentor) || 'Космонавт';
   return `<div class="activate-banner">
     <div class="txt"><b>${tr('Чат с наставником не активирован','Mentor chat not activated')}</b>${tr('Он ещё ни разу тебе не писал — открой чат и нажми Start.','He hasn\'t messaged you yet — open the chat and tap Start.')}</div>
-    <button onclick="openMentorChat()">${tr('Открыть','Open')}</button>
+    <button onclick="openMentorChat('${name}')">${tr('Открыть','Open')}</button>
   </div>`;
 }
 const MENTOR_INFO = {
@@ -1308,6 +1331,12 @@ const MENTOR_INFO = {
     fit:{ru:'Психотипу «Аналитик» — тем, кто верит цифрам больше эмоций и хочет видеть систему за своими действиями.', en:"For the Analyst type — anyone who trusts numbers more than emotions and wants to see the system behind their actions."},
     energy:{ru:'Собранная, точная, чуть отстранённая — как учёный, увлечённый экспериментом.', en:"Composed, precise, a little detached — like a scientist absorbed in an experiment."},
     tone:{ru:'Через факты, метрики и логику — без давления, но с конкретикой.', en:"Through facts, metrics, and logic — no pressure, just specifics."}
+  },
+  'Леха P1x3l': {
+    bio:{ru:'Правая рука CTO и первый full-stack в крупнейшей российской IT-компании — в 14 лет вскрыл банк, который тайно уводили в банкротство, и вместо колонии его забрали на госслужбу. Ночной график, гантели между компиляциями, робот по имени Тостер на столе.', en:"The CTO's right hand and first full-stack dev at Russia's biggest IT company — at 14 he exposed a bank secretly being drained toward bankruptcy, and instead of prison got recruited by the state. Night-owl schedule, weights between builds, a robot named Toaster on his desk."},
+    fit:{ru:'Тем, кому нужен наставник-ровесник, а не старший — быстрый, дерзкий, без нравоучений, но с настоящим следующим шагом за каждой шуткой.', en:"For anyone who wants a mentor who feels like a peer, not an elder — fast, brash, no lectures, but a real next step behind every joke."},
+    energy:{ru:'Дерзкая, ночная, геймерская — best friend energy без пафоса.', en:"Brash, nocturnal, gamer energy — best-friend vibes, zero pretense."},
+    tone:{ru:'Быстро, легко, с приколами и случайными погонялами — но серьёзно, когда дело реально важное.', en:"Fast and easy, jokes and random nicknames — but dead serious when it actually matters."}
   },
   'Ледокол': {
     bio:{ru:'Настоящий ледокол — идёт вперёд, даже когда вокруг лёд и сопротивление. Бывший капитан дальнего плавания, для которого дисциплина — это способ не потерять курс, что бы ни случилось.', en:"A genuine icebreaker — moves forward even through ice and resistance. A former long-haul ship captain for whom discipline is a way to never lose course, whatever happens."},
@@ -2030,6 +2059,7 @@ const MENTOR_NAME_EN = {
   'Космонавт':'Cosmonaut', 'Баба Зина':'Zi', 'Витя Убуд':'Vitya Ubud',
   'Алина ДиЭнЭй':'Alina DNA', 'Ледокол':'Icebreaker', 'Мама Женя':'Mama Zhenya',
   'Профессор':'The Professor', 'Товарищ Ли':'Comrade Li', 'Лиза Джаз':'Liza Jazz',
+  'Леха P1x3l':'Lyokha P1x3l',
 };
 function mentorName(name){ return state.lang==='en' ? (MENTOR_NAME_EN[name]||name) : name; }
 
@@ -2529,7 +2559,7 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      ${mentorActivationCard()}
+      ${mentorActivationCard(name)}
       <button class="btn block" style="margin-top:10px;" onclick="resetForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'12П'});
   },
@@ -3278,7 +3308,7 @@ const SCREENS = {
         ${text}
       </div>
       <p class="hint" style="margin-top:10px;">${tr('Драйв в профиле уже пошёл вверх — миссия запущена.','Your Drive score just went up — mission launched.')}</p>
-      ${mentorActivationCard()}
+      ${mentorActivationCard(name)}
       <button class="btn block" style="margin-top:10px;" onclick="resetResultForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'13Р'});
   },
@@ -3527,7 +3557,7 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      ${mentorActivationCard()}
+      ${mentorActivationCard(name)}
       <button class="btn block" style="margin-top:18px;" onclick="resetAskezaForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'9А'});
   },
@@ -3818,6 +3848,24 @@ function startPromiseRecording(){
 /* ==== Иллюминатор: запись видео прямо в приложении (getUserMedia + MediaRecorder) ==== */
 let illumStream = null, illumRecorder = null, illumChunks = [], illumBlob = null, illumTimerHandle = null, illumSeconds = 0;
 
+// iOS/WKWebView bug: on phones with multiple front-facing lenses, getUserMedia
+// sometimes starts the stream at a non-1x zoom level (the camera picks a
+// telephoto crop instead of the standard lens), which reads as the preview
+// being "super zoomed in" even though the video/CSS box itself is correct.
+// Where the browser exposes a zoom capability, force it back to the minimum
+// (1x) right after the stream opens. No-op (and harmless) on devices/browsers
+// that don't support the zoom constraint.
+function resetCameraZoomIfSupported(stream){
+  try {
+    const track = stream && stream.getVideoTracks && stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    if (caps && caps.zoom && typeof caps.zoom.min === 'number') {
+      track.applyConstraints({ advanced: [{ zoom: caps.zoom.min }] }).catch(()=>{});
+    }
+  } catch(e){ /* zoom constraint unsupported — leave the default framing */ }
+}
+
 function stopIllumMedia(){
   try { if (illumRecorder && illumRecorder.state !== 'inactive') illumRecorder.stop(); } catch(e){}
   try { if (illumStream) illumStream.getTracks().forEach(t=>t.stop()); } catch(e){}
@@ -3842,6 +3890,7 @@ async function enterIllumRecordScreen(){
       },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
+    resetCameraZoomIfSupported(illumStream);
     const video = document.getElementById('cameraPreview');
     if (video) {
       video.srcObject = illumStream;
@@ -4137,6 +4186,7 @@ async function enterWizardCam(){
       video: { facingMode: 'user', aspectRatio: { ideal: 9/16 }, width: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
+    resetCameraZoomIfSupported(wizStream);
     const video = document.getElementById('wizCamPreview');
     if (video) { video.srcObject = wizStream; video.style.transform = 'scaleX(-1)'; }
   } catch (e) {
