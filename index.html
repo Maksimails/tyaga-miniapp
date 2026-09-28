@@ -172,6 +172,9 @@
     border-radius:16px;
     padding:16px;
   }
+  /* white variant, used for a stand-out row/button on an otherwise all-dark
+     settings-style list (e.g. "Ещё" → Орбитальный Стор, 2026-09-28 request) */
+  .card-invert{background:var(--invert-bg);color:var(--invert-text);border-color:var(--invert-bg);}
   .activate-card{
     background:var(--invert-bg);
     color:var(--invert-text);
@@ -2458,6 +2461,37 @@ const BADGES = [
     check:p=>({unlocked:false}) },
 ];
 
+// Значки ("Badges") — 2026-09-28 request: a SEPARATE collection from the
+// BADGES achievement ladder above. That one auto-unlocks purely off profile
+// stats (BADGES[i].check(p)); this one is a static catalog of collectible
+// status badges, each either earned through activity ('grant' — awarded
+// elsewhere in code, e.g. grantStreakReward()/checkinRoad's day-13 lucky
+// badge, both of which already push into state.profile.badges) or bought
+// outright with Л.С. ('buy', via buyBadge() below). Both kinds land in the
+// same state.profile.badges wallet ({id, earnedAt}), so "owned" here is just
+// state.profile.badges.some(b=>b.id===...) — purely cosmetic, no gameplay
+// effect, reached from profile → "Значки".
+const BADGE_SHOP = [
+  { id:'streak7', kind:'grant', icon:'flame', name:{ru:'Неделя без остановок',en:'Unbroken Week'}, desc:{ru:'Выдаётся за серию отчётов 7 дней подряд.',en:'Awarded for a 7-day reporting streak.'} },
+  { id:'streak14', kind:'grant', icon:'flame', name:{ru:'Держит темп',en:'Holding Pace'}, desc:{ru:'Выдаётся за серию 14 дней подряд.',en:'Awarded for a 14-day streak.'} },
+  { id:'streak30', kind:'grant', icon:'flex', name:{ru:'Стойкий',en:'Steadfast'}, desc:{ru:'Выдаётся за серию 30 дней подряд — повторяется каждый следующий круг.',en:'Awarded for a 30-day streak — repeats every further cycle.'} },
+  { id:'checkinLucky', kind:'grant', icon:'medal-star', name:{ru:'Счастливый значок',en:'Lucky Badge'}, desc:{ru:'Сюрприз с 13-го дня космической карты — выпадает не всем и не всегда одинаково.',en:'A surprise from day 13 of the space map — not the same for everyone.'} },
+  { id:'founder', kind:'buy', price:1000, icon:'rocket', name:{ru:'Пилот-основатель',en:'Founding Pilot'}, desc:{ru:'Статус одного из первых пилотов ТЯГИ.',en:"Status marking one of TYAGA's earliest pilots."} },
+  { id:'orbit_collector', kind:'buy', price:600, icon:'medal-1st', name:{ru:'Коллекционер орбит',en:'Orbit Collector'}, desc:{ru:'Для тех, кто собирает значки не менее охотно, чем миссии.',en:'For those who collect badges as eagerly as missions.'} },
+  { id:'night_crew', kind:'buy', price:300, icon:'flame', name:{ru:'Полуночный экипаж',en:'Night Crew'}, desc:{ru:'Для тех, чьи лучшие манёвры случаются после полуночи.',en:'For those whose best maneuvers happen after midnight.'} },
+  { id:'gold_standard', kind:'buy', price:1500, icon:'crown', name:{ru:'Золотой стандарт',en:'Gold Standard'}, desc:{ru:'Высший статус в коллекции — редкий и заметный.',en:"The collection's top status — rare and visible."} },
+];
+function buyBadge(id){
+  const b = BADGE_SHOP.find(x=>x.id===id);
+  if(!b || b.kind!=='buy') return;
+  if(state.profile.badges.some(x=>x.id===id)) return;
+  if(state.profile.ls.total < b.price){ alert(tr('Не хватает Л.С.','Not enough Flight Hours')); return; }
+  state.profile.ls.total -= b.price;
+  state.profile.badges.push({ id, earnedAt: todayISO() });
+  dbUpsertUserStats();
+  render();
+}
+
 function showBadgeInfo(id){ state.badgeInfoFor = (state.badgeInfoFor===id ? null : id); render(); }
 
 function badgeCard(b, p){
@@ -2618,15 +2652,15 @@ const SCREENS = {
       <div class="stack" style="margin-top:14px;">
         <div class="card" style="cursor:pointer;" onclick="go('habitBasics')">
           <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Привычка','Habit')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily Repetitive Actions<br>Build a Habit')}</div>
+          <div style="margin-top:5px;font-family:var(--font-body);font-size:11.5px;line-height:1.45;color:var(--text-faint);">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily repetitive actions — build a habit')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('rGoal')">
           <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Результат','Result')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach Some Point in the Future<br>Achieve a Specific Result')}</div>
+          <div style="margin-top:5px;font-family:var(--font-body);font-size:11.5px;line-height:1.45;color:var(--text-faint);">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach a specific point in the future — achieve a specific result')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('aGoal')">
           <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Аскеза','Ascesa')}</div>
-          <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism<br>Willingly Give Up a Habit')}</div>
+          <div style="margin-top:5px;font-family:var(--font-body);font-size:11.5px;line-height:1.45;color:var(--text-faint);">${tr('Осознанный отказ от привычки или чего-либо','A conscious renunciation of a habit or of something')}</div>
         </div>
       </div>
     `);
@@ -3192,6 +3226,10 @@ const SCREENS = {
         <span class="pnr-label">${tr('Ачивки','Achievements')}</span>
         <span class="pnr-meta">${unlockedBadges}/${BADGES.length} ›</span>
       </div>
+      <div class="profile-nav-row" onclick="go('badgeShop')">
+        <span class="pnr-label">${tr('Значки','Badges')}</span>
+        <span class="pnr-meta">${p.badges.length}/${BADGE_SHOP.length} ›</span>
+      </div>
       <div class="profile-nav-row" onclick="go('crewScreen')">
         <span class="pnr-label">${tr('Экипаж','Crew')}</span>
         <span class="pnr-meta">${p.crew.inspiredCount} ›</span>
@@ -3393,6 +3431,46 @@ const SCREENS = {
     `, {step: tr('Завершённые','Completed')});
   },
 
+  // Значки (Badges) — collectible status badges, separate from the Ачивки
+  // achievement ladder. 2026-09-28 request.
+  badgeShop(){
+    const p = state.profile;
+    const owned = id => p.badges.some(b=>b.id===id);
+    const grantRow = b => `
+      <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;${owned(b.id)?'':'opacity:.55;'}">
+        <div class="icon" style="width:26px;height:26px;flex:none;">${ICONS[b.icon]||''}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;">${tf(b.name)}</div>
+          <div style="font-family:var(--font-body);font-size:12px;color:var(--text-faint);margin-top:2px;">${tf(b.desc)}</div>
+        </div>
+        ${owned(b.id)
+          ? `<span class="btn ghost small" style="pointer-events:none;flex:none;">✓ ${tr('Есть','Owned')}</span>`
+          : `<span class="btn ghost small" style="pointer-events:none;flex:none;">${tr('Награда','Earned only')}</span>`}
+      </div>`;
+    const buyRow = b => `
+      <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <div class="icon" style="width:26px;height:26px;flex:none;">${ICONS[b.icon]||''}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;">${tf(b.name)}</div>
+          <div style="font-family:var(--font-body);font-size:12px;color:var(--text-faint);margin-top:2px;">${tf(b.desc)}</div>
+        </div>
+        ${owned(b.id)
+          ? `<span class="btn ghost small" style="pointer-events:none;flex:none;">✓ ${tr('Есть','Owned')}</span>`
+          : `<button class="btn primary small" style="flex:none;" onclick="buyBadge('${b.id}')">${tr(`Купить за ${b.price}`,`Buy for ${b.price}`)} Л.С.</button>`}
+      </div>`;
+    const grants = BADGE_SHOP.filter(b=>b.kind==='grant');
+    const buys = BADGE_SHOP.filter(b=>b.kind==='buy');
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Значки','Badges')}</h1>
+      <p class="hint" style="margin:-4px 0 12px;">${tr('Коллекция статусных значков — одни выдаются за активность, другие можно купить за Л.С.','A collection of status badges — some are earned through activity, others can be bought with Flight Hours.')}</p>
+      <div style="font-family:var(--font-body);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);margin:14px 0 8px;">${tr('За активность','Earned')}</div>
+      ${grants.map(grantRow).join('')}
+      <div style="font-family:var(--font-body);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);margin:18px 0 8px;">${tr('Можно купить','For sale')}</div>
+      ${buys.map(buyRow).join('')}
+    `, {step: tr('Значки','Badges')});
+  },
+
   illuminator(){
     state.showNav = true;
     // No standalone/random "record a video" entry here — every video is tied
@@ -3482,10 +3560,6 @@ const SCREENS = {
     const p = state.profile;
     const displayName = (p.name && p.name.trim()) || tr('Гость','Guest');
     const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || {};
-    const activeMentorMission = state.missions.find(m => m.mentor);
-    const mentorLine = activeMentorMission
-      ? tr('Наставник — ','Mentor — ') + activeMentorMission.mentor + tr(' (зафиксирован на весь срок)',' (locked in for the whole duration)')
-      : tr('Наставника ещё нет — запусти миссию, чтобы он появился','No mentor yet — start a mission to get one');
     return `
       <div class="eyebrow">${tr('Настройки','Settings')}</div>
       <h1>${tr('Ещё','More')}</h1>
@@ -3497,12 +3571,12 @@ const SCREENS = {
         </div>
       </div>
       <div class="stack">
-        <div class="card" style="cursor:pointer;" onclick="go('merch')">${tr('Орбитальный Стор · мерч ТЯГА','Orbital Store · TYAGA merch')}</div>
+        <div class="card card-invert" style="cursor:pointer;" onclick="go('merch')">${tr('Орбитальный Стор · мерч ТЯГА','Orbital Store · TYAGA merch')}</div>
         <div class="card" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleNotify()">
           <span>${tr('Уведомления','Notifications')}</span>
           <div class="switch ${state.settings.notifyOn?'on':''}"><i></i></div>
         </div>
-        <div class="card">${mentorLine}</div>
+        <div class="card" style="cursor:pointer;" onclick="go('mentorRoster')">${tr('Наставники','Mentors')}</div>
         <div class="card" style="cursor:pointer;" onclick="alert(tr('Оплата в этой тестовой версии ещё не подключена.','Payment isn\\'t connected yet in this test build.'))">${tr('Способ оплаты','Payment method')}</div>
         <div class="card" style="cursor:pointer;" onclick="alert(consentTermsText())">${tr('Оферта и политика','Terms and policy')}</div>
         <div class="card" onclick="alert(tr('Форма ушла бы в поддержку.','This form would go straight to support.'))" style="cursor:pointer;">${tr('Поддержка · «Нужна помощь»','Support · “Need help”')}</div>
@@ -3515,6 +3589,45 @@ const SCREENS = {
         </div>
       </div>
     `;
+  },
+
+  // Full mentor roster with in-depth bios — reached from Ещё → Наставники.
+  // Separate from the in-wizard mentor picker's collapsible info box: this is
+  // a plain browsing screen (no "choose this mentor" CTA), lists every
+  // mentor including the reserved/not-yet-enabled ones (2026-09-28 request:
+  // "Оставим кнопку Наставники и там будет глубинное описание каждого из них").
+  mentorRoster(){
+    const allMentors = [...MENTORS_FREE, ...MENTORS_PAID];
+    const row = (name) => {
+      const info = MENTOR_INFO[name];
+      const intro = MENTOR_INTRO_LINE[name];
+      const img = MENTOR_IMAGES[name];
+      const enabled = MENTORS_ENABLED.includes(name);
+      const price = mentorPriceFor(name);
+      const statusLabel = !enabled
+        ? tr('Скоро','Coming soon')
+        : (price ? price+tr('₽ · платный наставник','₽ · paid mentor') : tr('бесплатно · доступен всем','free · available to everyone'));
+      return `<div class="mentor-profile" style="margin-bottom:14px;${enabled?'':'opacity:.6;'}">
+        <div class="mp-head">
+          <div class="mp-photo" style="${img?`background-image:url('${img}')`:''}">${img?'':name[0]}</div>
+          <div>
+            <div class="mp-name">${mentorName(name)}</div>
+            <div class="mp-price">${statusLabel}</div>
+          </div>
+        </div>
+        ${intro ? `<div class="mp-intro">«${tf(intro)}»</div>` : ''}
+        <div class="mp-row"><div class="mp-label">${tr('Кто это','Who they are')}</div><div class="mp-text">${tf(info.bio)}</div></div>
+        <div class="mp-row"><div class="mp-label">${tr('Энергетика','Energy')}</div><div class="mp-text">${tf(info.energy)}</div></div>
+        <div class="mp-row"><div class="mp-label">${tr('Тон поддержки','Tone of support')}</div><div class="mp-text">${tf(info.tone)}</div></div>
+        <div class="mp-row"><div class="mp-label">${tr('Подходит, если','Good fit if')}</div><div class="mp-text">${tf(info.fit)}</div></div>
+      </div>`;
+    };
+    return screenShell(`
+      <div class="eyebrow">${tr('Наставники','Mentors')}</div>
+      <h1>${tr('Весь экипаж ЦУЦ','The whole Mission Control crew')}</h1>
+      <p class="hint" style="margin:-4px 0 14px;">${tr('Полное досье на каждого наставника — кто это, какая энергетика и кому подходит.','The full file on every mentor — who they are, their energy, and who they fit.')}</p>
+      ${allMentors.map(row).join('')}
+    `, {step: tr('Наставники','Mentors')});
   },
 
   merch(){
