@@ -6,7 +6,7 @@
 <title>Тяга</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:ital,wght@0,500;0,700;1,700&family=Montserrat:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:ital,wght@0,500;0,700;1,500;1,700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
   :root{
     --bg:#000000;
@@ -19,7 +19,7 @@
     --text-faint:#5a5a5a;
     --invert-bg:#ffffff;
     --invert-text:#000000;
-    --font-display:'Oswald', 'Arial Narrow', sans-serif;
+    --font-display:'Oswald', 'Arial Narrow', Impact, sans-serif; /* 2026-09-28: REVERTED — brand book v1.7 confirms Oswald Italic is the intentional highlight/heading font, Montserrat is body. The 2026-09-26 Montserrat-everywhere change was a misread of Maksim's original complaint and is undone. */
     --font-head:'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif; /* brand-book/site pass (2026-09-25): site headlines are heavy uppercase sans, not the old Fraunces serif */
     --font-body:'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif; /* brand book v1.4 (2026-09-24): Montserrat is the confirmed main sans font */
     --font-mono:'IBM Plex Mono', monospace;
@@ -255,7 +255,7 @@
     display:flex;justify-content:space-between;align-items:center;
   }
   .ticket:active{opacity:.7;}
-  .ticket .tname{font-family:var(--font-display);font-size:19px;font-weight:700;}
+  .ticket .tname{font-family:var(--font-display);font-style:italic;font-size:19px;font-weight:700;}
   .ticket .tsub{color:var(--text-dim);font-size:12px;margin-top:2px;}
   .ticket .tprice{font-family:var(--font-mono);font-size:16px;font-variant-numeric:tabular-nums;}
 
@@ -272,6 +272,29 @@
   .t2-edit{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);background:none;border:none;cursor:pointer;text-decoration:underline;white-space:nowrap;flex-shrink:0;}
   .t2-brand{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);border:1px solid var(--line);padding:3px 9px;border-radius:10px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
   .t2-participants{font-family:var(--font-mono);font-size:13px;color:var(--text-dim);white-space:nowrap;}
+
+  /* ticket3: mission cards redesigned to match the website reference (2026-09-26) */
+  /* tk-card: brand book v1.7 "билет" — white card on the app's black background.
+     Used for every mission-ticket state (proposed/active/completed); only the
+     verb in .tk-verb and which of .tk-dl/.tk-rw appears changes between them. */
+  .tk-card{background:#fff;color:#000;border-radius:26px;padding:20px;margin-bottom:16px;cursor:pointer;box-shadow:0 22px 48px -26px rgba(255,255,255,.22);}
+  .tk-card:active{opacity:.85;}
+  .tk-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .tk-tag{display:inline-flex;align-items:center;gap:7px;background:#000;color:#fff;border-radius:999px;padding:6px 13px 6px 7px;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+  .tk-tag img{width:17px;height:17px;}
+  .tk-status{font-family:var(--font-mono);font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
+  .tk-verb{display:flex;align-items:center;gap:.22em;font-family:var(--font-display);font-weight:700;font-style:italic;font-size:23px;letter-spacing:-.005em;text-transform:uppercase;line-height:1;margin-bottom:4px;}
+  .tk-verb img{width:.78em;height:.78em;flex-shrink:0;filter:invert(1);/* source SVG is white-fill; invert to read on the white ticket card */}
+  .tk-goal{font-weight:700;font-size:15.5px;margin-bottom:14px;line-height:1.3;}
+  .tk-bar{height:7px;border-radius:8px;background:#e6e6e6;overflow:hidden;margin-bottom:16px;}
+  .tk-bar i{display:block;height:100%;background:#000;border-radius:8px;}
+  .tk-dl{margin:0 0 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+  .tk-dl dt{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#888;margin:0;}
+  .tk-dl dd{margin:2px 0 0;font-weight:700;font-size:13px;line-height:1.3;}
+  .tk-rw{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+  .tk-rw div{background:#f3f3f3;border-radius:14px;padding:10px 12px;font-weight:700;font-size:12.5px;}
+  .tk-rw b{display:block;font-family:var(--font-mono);font-weight:500;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:#777;margin-bottom:3px;}
+  .tk-cta{background:#000;color:#fff;border-radius:999px;padding:14px;text-align:center;font-weight:800;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;}
 
   /* Я-щит sub-mark tag (brand book v1.5, visual pass 2026-09-25) — the
      short-form brand signal used in front of a first-person phrase, same
@@ -319,17 +342,17 @@
   }
   .mentor-card.active{border-color:#fff;background:var(--surface-3);}
   .mentor-card .mentor-body{flex:1;min-width:0;padding-right:56px;}
-  .mentor-card .mname{font-size:14.5px;font-weight:800;cursor:pointer;font-family:var(--font-display);letter-spacing:.01em;}
+  .mentor-card .mname{font-size:14.5px;font-weight:800;cursor:pointer;font-family:var(--font-display);font-style:italic;letter-spacing:.01em;}
   .mentor-card .mfit{font-size:11.5px;color:var(--text-dim);margin-top:3px;line-height:1.35;cursor:pointer;}
   .mentor-card .mtag{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);margin-top:6px;text-transform:uppercase;cursor:pointer;letter-spacing:.03em;}
-  .mentor-icon{width:56px;height:56px;flex:0 0 56px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:20px;cursor:pointer;background-size:cover;background-position:center top;position:relative;overflow:hidden;}
+  .mentor-icon{width:56px;height:56px;flex:0 0 56px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-style:italic;font-weight:700;font-size:20px;cursor:pointer;background-size:cover;background-position:center top;position:relative;overflow:hidden;}
   .rec-badge{position:absolute;top:12px;right:14px;background:#fff;color:#000;font-family:var(--font-mono);font-size:8.5px;font-weight:700;padding:2px 5px;border-radius:8px;letter-spacing:.02em;text-transform:uppercase;}
   .mentor-info-btn{position:absolute;right:14px;bottom:12px;background:none;border:1px solid var(--line);border-radius:8px;color:var(--text-faint);font-family:var(--font-mono);font-size:9px;padding:5px 8px;cursor:pointer;text-transform:uppercase;letter-spacing:.03em;}
 
   /* Date-of-arrival picker redesign (task #43): a big legible readout of the
      current pick sits above the quick-preset chips and the native date
      input, instead of a bare, hard-to-read date field on its own. */
-  .date-preview{font-family:var(--font-display);font-weight:800;font-size:17px;text-transform:capitalize;letter-spacing:.01em;padding:10px 0 2px;}
+  .date-preview{font-family:var(--font-display);font-style:italic;font-weight:800;font-size:17px;text-transform:capitalize;letter-spacing:.01em;padding:10px 0 2px;}
   input[type="date"]{
     width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;
     padding:12px 14px;color:var(--text);font-family:var(--font-mono);font-size:14px;
@@ -340,7 +363,7 @@
   /* full mentor profile */
   .mentor-profile{border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:10px;}
   .mp-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
-  .mp-photo{width:64px;height:64px;border-radius:50%;flex-shrink:0;background:var(--surface-3);background-size:cover;background-position:center top;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:22px;}
+  .mp-photo{width:64px;height:64px;border-radius:50%;flex-shrink:0;background:var(--surface-3);background-size:cover;background-position:center top;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-style:italic;font-weight:700;font-size:22px;}
   .mp-name{font-weight:700;font-size:16px;}
   .mp-price{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.02em;margin-top:3px;}
   .mp-intro{font-family:var(--font-display);font-style:italic;font-size:13px;color:var(--text-dim);border-left:2px solid var(--line);padding-left:10px;margin-bottom:14px;}
@@ -441,7 +464,7 @@
   /* profile */
   .avatar{
     width:52px;height:52px;border-radius:50%;border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:20px;
+    display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-style:italic;font-weight:700;font-size:20px;
   }
   .profile-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
   .trust-badge{display:flex;align-items:center;gap:6px;margin-left:auto;border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 4px;}
@@ -470,8 +493,100 @@
   }
   .type-row .tn{font-weight:600;}
   .type-row .tv{font-family:var(--font-mono);color:var(--text-dim);font-size:11.5px;}
+  .type-row.active{border-color:#111;background:rgba(17,17,17,.04);}
+  .type-row.active .tn{font-weight:700;}
+  .stat-strip3{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+    border:1px solid var(--line);border-radius:16px;padding:14px 8px;
+    margin-bottom:6px;
+  }
+  .stat-strip3 .cell,.stat-strip2 .cell{text-align:center;}
+  .stat-strip3 .val,.stat-strip2 .val{font-family:var(--font-mono);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .stat-strip3 .lbl,.stat-strip2 .lbl{font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
+  .stat-strip2{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:8px;
+    border:1px solid var(--line);border-radius:16px;padding:12px 8px;
+    margin-bottom:14px;
+  }
+  /* level screen: big level badge (replaces the old full ladder list) */
+  .level-hero{display:flex;flex-direction:column;align-items:center;margin:10px 0 22px;}
+  .level-hero-badge{
+    width:140px;height:140px;border-radius:50%;background:var(--invert-bg);color:var(--invert-text);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  }
+  .level-hero-badge img{width:22px;height:22px;filter:invert(1);}
+  .level-hero-num{font-family:var(--font-display);font-style:italic;font-weight:700;font-size:54px;line-height:1;}
+  .level-hero-label{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-top:12px;}
+  .profile-nav-row{
+    display:flex;justify-content:space-between;align-items:center;
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;
+    cursor:pointer;transition:border-color .15s ease,background .15s ease;
+  }
+  .profile-nav-row:active{background:rgba(17,17,17,.04);}
+  .pnr-label{font-weight:600;font-size:13.5px;}
+  .pnr-meta{font-family:var(--font-mono);color:var(--text-dim);font-size:12px;}
   .badge-row{display:flex;gap:8px;flex-wrap:wrap;}
   .badge{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:14px;}
+
+  /* daily check-in entry point (home) — kept deliberately small/quiet, not a
+     full banner, per 2026-09-28 feedback ("make button small on main page") */
+  .checkin-chip{
+    display:inline-flex;align-items:center;gap:9px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px 7px 7px;margin-bottom:14px;cursor:pointer;max-width:100%;
+  }
+  .checkin-chip:active{background:var(--surface-3);}
+  .checkin-chip .cc-icon{width:24px;height:24px;border-radius:50%;background:var(--invert-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .checkin-chip .cc-icon img{width:13px;height:13px;filter:invert(1);}
+  .checkin-chip .cc-txt{display:flex;flex-direction:column;line-height:1.25;overflow:hidden;}
+  .checkin-chip .cc-label{font-family:var(--font-display);font-style:italic;text-transform:uppercase;font-size:12px;font-weight:700;white-space:nowrap;}
+  .checkin-chip .cc-streak{font-family:var(--font-mono);font-size:9.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .checkin-chip .cc-arrow{flex:none;font-family:var(--font-mono);font-size:15px;color:var(--text-faint);}
+  /* white variant of .profile-nav-row for the check-in entry, per feedback
+     ("make button white on profile page") — stands apart from the other rows */
+  .profile-nav-row.pnr-invert{background:var(--invert-bg);border-color:var(--invert-bg);color:var(--invert-text);}
+  .profile-nav-row.pnr-invert .pnr-meta{color:#666;}
+  .profile-nav-row.pnr-invert:active{background:#eee;}
+
+  /* space-road check-in screen — a compact star-map, all 15 waypoints visible
+     at once on a 3×5 snake grid, connected by one smooth flight path (SVG,
+     Catmull-Rom curve — see smoothPathD()). Rewards are never spelled out on
+     the map itself (kept mysterious per 2026-09-28 request); only which of 3
+     waypoint kinds a stop is. */
+  .road-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border:1px solid var(--line);border-radius:16px;padding:14px 8px;margin-bottom:18px;}
+  .road-stats .cell{text-align:center;}
+  .road-stats .val{font-family:var(--font-mono);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .road-stats .lbl{font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
+  .road-map{position:relative;width:100%;aspect-ratio:300/260;margin-bottom:18px;}
+  .road-map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+  .road-wp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .wp-dot{
+    width:30px;height:30px;border-radius:50%;background:var(--surface);border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-faint);
+    transition:transform .15s ease;
+  }
+  .road-wp.kind-gift .wp-dot{width:36px;height:36px;font-size:14px;}
+  .road-wp.rn-done .wp-dot,.road-wp.rn-done-today .wp-dot{background:var(--invert-bg);border-color:var(--invert-bg);color:var(--invert-text);}
+  .road-wp.rn-future .wp-dot{opacity:.4;}
+  .road-wp.rn-claimable .wp-dot{
+    border-color:var(--invert-bg);color:var(--invert-bg);
+    box-shadow:0 0 0 4px rgba(255,255,255,.14),0 0 18px rgba(255,255,255,.28);
+    animation:wpPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes wpPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+  .wp-day{font-family:var(--font-mono);font-size:8px;color:var(--text-faint);letter-spacing:.03em;}
+  .road-wp.rn-claimable .wp-day{color:var(--text-dim);}
+  .road-claim-bar{position:sticky;bottom:0;background:linear-gradient(to bottom, transparent, var(--bg) 30%);padding-top:16px;margin-top:-16px;}
+  /* inline reward reveal (shown once, right after tapping "Выйти на связь") */
+  .road-reveal{background:var(--invert-bg);color:var(--invert-text);border-radius:16px;padding:18px;text-align:center;margin-bottom:16px;}
+  .road-reveal .rr-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#666;margin-bottom:8px;}
+  .road-reveal .rr-found{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:4px;}
+  .road-reveal .rr-reward{font-family:var(--font-display);font-style:italic;font-weight:700;font-size:22px;text-transform:uppercase;letter-spacing:.01em;}
+  /* persistent check-in log ("track record") below the map */
+  .road-hist-row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:9px 2px;}
+  .road-hist-row:last-child{border-bottom:none;}
+  .rh-day{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;flex-shrink:0;}
+  .rh-reward{font-weight:600;font-size:12.5px;text-align:right;}
 
   /* rank ladder */
   .rank-ladder{display:flex;align-items:flex-start;margin:16px 0 6px;}
@@ -513,14 +628,28 @@
   .cc-meta{font-size:11.5px;color:var(--text-faint);line-height:1.5;}
   .cc-cosmic{color:#fff;}
 
-  /* illuminator */
-  .post{border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px;}
-  .post-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-  .post-head .pname{font-weight:700;font-size:13px;}
-  .post-head .ptag{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);}
-  .post-body{font-size:13px;line-height:1.5;margin-bottom:10px;color:var(--text-dim);}
-  .post-actions{display:flex;gap:8px;}
-  .post-video{position:relative;border-radius:12px;overflow:hidden;margin-bottom:10px;aspect-ratio:16/9;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  /* illuminator — post cards brought onto the same white-card-on-black
+     "ticket" system as the rest of the app's mission tickets (2026-09-28:
+     "update ticket designs in Illuminator"). .post-tk replaces the old dark
+     bordered .post card; child class names (.post-head, .pname, etc.) are
+     unchanged, just rescoped/recolored for a white background. */
+  .post-tk{background:#fff;color:#000;border-radius:26px;padding:18px;margin-bottom:16px;box-shadow:0 22px 48px -26px rgba(255,255,255,.22);}
+  .post-tk .post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .post-tk .avatar{border-color:rgba(0,0,0,.15);}
+  .post-tk .post-head .pname{font-weight:700;font-size:13px;color:#000;}
+  .post-tk .post-head .ptag{font-family:var(--font-mono);font-size:9.5px;color:#888;}
+  .post-tk .post-context{font-family:var(--font-mono);font-size:9.5px;color:#888;text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px;}
+  .post-tk .post-body{font-size:13px;line-height:1.5;margin-bottom:12px;color:#333;}
+  .post-tk .post-media-fallback{
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    border:1px dashed rgba(0,0,0,.18);border-radius:14px;padding:24px 12px;margin-bottom:10px;
+    font-size:12px;color:#999;
+  }
+  .post-tk .post-actions{display:flex;gap:8px;}
+  .post-tk .btn{background:transparent;border-color:rgba(0,0,0,.18);color:#000;}
+  .post-tk .btn.ghost{background:rgba(0,0,0,.06);}
+  .post-tk .btn.primary{background:#000;color:#fff;border-color:#000;}
+  .post-video{position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;aspect-ratio:16/9;cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .post-video .pv-play{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.94);color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;z-index:2;box-shadow:0 6px 16px rgba(0,0,0,.4);}
   .post-video .pv-kind{position:absolute;top:8px;left:8px;font-family:var(--font-mono);font-size:9px;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.04em;background:rgba(0,0,0,.4);padding:3px 8px;border-radius:6px;z-index:2;}
   .post-video .pv-duration{position:absolute;bottom:9px;right:9px;background:rgba(0,0,0,.6);color:#fff;font-family:var(--font-mono);font-size:10px;padding:2px 7px;border-radius:6px;z-index:2;}
@@ -948,10 +1077,11 @@ async function hydrateFromDB(){
       state.profile.completedByType = { 'Привычка':0, 'Результат':0, 'Аскеза':0 };
       state.profile.launchedByType = { 'Привычка':0, 'Результат':0, 'Аскеза':0 };
       state.profile.streak = { current:0, longest:0, lastActiveDate:null, milestones:{} };
+      state.profile.checkin = { streak:0, longest:0, lastDate:null, history:[] };
       state.profile.badges = [];
       state.profile.vouchers = {};
       state.profile.followers = 0;
-      state.profile.support = { given:0 };
+      state.profile.support = { given:0, received:0 };
       state.profile.crew = { inspiredCount:0, clones: [] };
       state.profile.completed = [];
       state.missions = [];
@@ -964,10 +1094,15 @@ async function hydrateFromDB(){
       state.profile.streak.longest = userRow.streak_longest;
       state.profile.streak.lastActiveDate = userRow.streak_last_date || null;
       if (userRow.streak_milestones && Object.keys(userRow.streak_milestones).length) state.profile.streak.milestones = userRow.streak_milestones;
+      state.profile.checkin.streak = userRow.checkin_streak || 0;
+      state.profile.checkin.longest = userRow.checkin_longest || 0;
+      state.profile.checkin.lastDate = userRow.checkin_last_date || null;
+      if (userRow.checkin_history && userRow.checkin_history.length) state.profile.checkin.history = userRow.checkin_history;
       if (userRow.badges && userRow.badges.length) state.profile.badges = userRow.badges;
       if (userRow.vouchers && Object.keys(userRow.vouchers).length) state.profile.vouchers = userRow.vouchers;
       state.profile.followers = userRow.followers;
       state.profile.support.given = userRow.support_given;
+      state.profile.support.received = userRow.support_received || 0;
       state.profile.crew.inspiredCount = userRow.crew_inspired_count;
       if (userRow.completed_by_type && Object.keys(userRow.completed_by_type).length) state.profile.completedByType = userRow.completed_by_type;
       if (userRow.launched_by_type && Object.keys(userRow.launched_by_type).length) state.profile.launchedByType = userRow.launched_by_type;
@@ -1029,10 +1164,15 @@ async function dbUpsertUserStats(){
       streak_longest: state.profile.streak.longest,
       streak_last_date: state.profile.streak.lastActiveDate,
       streak_milestones: state.profile.streak.milestones,
+      checkin_streak: state.profile.checkin.streak,
+      checkin_longest: state.profile.checkin.longest,
+      checkin_last_date: state.profile.checkin.lastDate,
+      checkin_history: state.profile.checkin.history,
       badges: state.profile.badges,
       vouchers: state.profile.vouchers,
       followers: state.profile.followers,
       support_given: state.profile.support.given,
+      support_received: state.profile.support.received,
       crew_inspired_count: state.profile.crew.inspiredCount,
       completed_by_type: state.profile.completedByType,
       launched_by_type: state.profile.launchedByType,
@@ -1163,7 +1303,7 @@ const state = {
   freeMissionToken: false,
   payment: null,           // { kind, status: creating|awaiting|succeeded|canceled|timeout|error, error, paymentId }
   mentorInfoFor: null,
-  ticketsTab: 'own',
+  ticketsTab: null, // no tab pre-selected — screen stays empty until the user taps one (2026-09-28 request)
   illumPlaying: null,
   illumSupported: {},
   illumPosts: [],
@@ -1258,10 +1398,14 @@ const state = {
     // (cleared on any gap so they're re-earnable next run); the 30-day reward
     // repeats every 30 days and needs no flag.
     streak: { current: 0, longest: 0, lastActiveDate: null, milestones: {} },
+    // Separate daily-tap check-in streak (space-road screen) — independent of
+    // the mission-report streak above. Keeps counting forever; the visible
+    // reward cycle just wraps every 15 days (see CHECKIN_CYCLE).
+    checkin: { streak: 0, longest: 0, lastDate: null, history: [] },
     badges: [], // streak-reward badges: [{id, earnedAt}]
     vouchers: {}, // redeemable rewards earned from streaks: { merchDiscountPct, freeEnhancement, freeHumanMentorSession, freeMission }
     followers: 0,
-    support: { given: 0 },
+    support: { given: 0, received: 0 },
     crew: {
       inspiredCount: 0,
       clones: []
@@ -1334,9 +1478,9 @@ const TARIFFS = [
 ];
 const ASKEZA_DURATIONS = [21,40,66,90,180,365];
 const READY_TICKETS = [
-  { id:'stretch21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'15 минут зарядки: растяжка или лёгкая тренировка каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, goalDefault:{ru:'15 минут зарядки: растяжки или легкой тренировки каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
-  { id:'dayrecap21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Подводить итоги дня каждый вечер: выводы и результаты дня',en:'Recap your day every evening: takeaways and results'}, goalDefault:{ru:'Подводить итоги дня каждый вечер: выводы / результаты дня',en:'Recap your day every evening: takeaways / results of the day'}, reportDefault:{ru:'Текстовый отчёт',en:'Text report'} },
-  { id:'read20', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка (ежедневное повторение)',en:'Habit (daily repetition)'}, tagline:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, goalDefault:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, reportDefault:{ru:'Фото прочитанных страниц',en:'Photo of the pages read'} },
+  { id:'stretch21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка',en:'Habit'}, tagline:{ru:'15 минут зарядки: растяжка или лёгкая тренировка каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, goalDefault:{ru:'15 минут зарядки: растяжки или легкой тренировки каждое утро',en:'15 minutes of exercise: stretching or a light workout every morning'}, reportDefault:{ru:'Видео-отчёт',en:'Video report'} },
+  { id:'dayrecap21', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка',en:'Habit'}, tagline:{ru:'Подводить итоги дня каждый вечер: выводы и результаты дня',en:'Recap your day every evening: takeaways and results'}, goalDefault:{ru:'Подводить итоги дня каждый вечер: выводы / результаты дня',en:'Recap your day every evening: takeaways / results of the day'}, reportDefault:{ru:'Текстовый отчёт',en:'Text report'} },
+  { id:'read20', type:'Привычка', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Привычка',en:'Habit'}, tagline:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, goalDefault:{ru:'Читать книгу 20 минут каждый день',en:'Read a book for 20 minutes every day'}, reportDefault:{ru:'Фото прочитанных страниц',en:'Photo of the pages read'} },
   { id:'run5k21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, goalDefault:{ru:'Пробежать 5 км без остановки',en:'Run 5km without stopping'}, reportDefault:{ru:'Видео + Strava',en:'Video + Strava'} },
   { id:'checkup21', type:'Результат', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Результат',en:'Result'}, tagline:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, goalDefault:{ru:'Пройти базовый чек-ап',en:'Get a basic health check-up'}, reportDefault:{ru:'Фото/документ',en:'Photo / document'} },
   { id:'nophone21', type:'Аскеза', days:21, price:0, big:{ru:'21 день',en:'21 days'}, typeLine:{ru:'Аскеза',en:'Ascesa'}, tagline:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, goalDefault:{ru:'Не пользоваться телефоном первый час после пробуждения',en:"Don't use your phone during the first hour after waking up"}, reportDefault:{ru:'Честная отметка',en:'Honest check-in'} },
@@ -1403,6 +1547,20 @@ function mentorActivationCard(mentorName){
 // at whichever mentor is on the user's most recent mission (state.missions
 // is kept newest-first — see addMissionFromForm's unshift) — a per-mission
 // activation flag is the more correct long-term fix, tracked separately.
+// Entry point into the standalone daily check-in ("space road") — a separate
+// tap-in mechanic from the mission-report streak above it on this screen.
+function checkinHomeBanner(){
+  const c = state.profile.checkin;
+  const already = c.lastDate === todayISO();
+  return `<div class="checkin-chip" onclick="go('checkinRoad')">
+    <span class="cc-icon"><img src="${YASHIELD_URI}" alt="Я"></span>
+    <span class="cc-txt">
+      <span class="cc-label">${tr('Радиообмен','Radio check-in')}</span>
+      <span class="cc-streak">${already ? tr('Сегодня уже в эфире','Already on the air today') : c.streak>0 ? `${c.streak} ${dayWord(c.streak)} ${tr('на связи','on the air')}` : tr('ежедневный сеанс связи','daily radio session')}</span>
+    </span>
+    <span class="cc-arrow">›</span>
+  </div>`;
+}
 function mentorActivationBanner(){
   if (state.profile.mentorActivated) return '';
   if (!state.missions || !state.missions.length) return '';
@@ -1690,41 +1848,50 @@ function wizardCamBlock(){
 // Я-щит sub-mark + first-person phrase row used on the website, and no
 // card shows a price (all missions are free by default, task #37).
 function ticketCard(t){
-  return `<div class="ticket2" onclick="openTicket('${t.id}')">
-    <div style="margin-bottom:8px;">${yaTag('Я делаю это','I\'m doing this')}</div>
-    <div class="t2-top"><div class="t2-big">${tf(t.big)}</div></div>
-    <div class="t2-type">${tf(t.typeLine)}</div>
-    <div class="t2-tagline">${tf(t.tagline)}</div>
-    <div class="t2-goal">
-      <div class="t2-goal-text">${tf(t.goalDefault)} · ${tr('отчёт','report')}: ${tf(t.reportDefault)}</div>
-      <button class="t2-edit" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Изменить','Change')}</button>
+  return `<div class="tk-card" onclick="openTicket('${t.id}')">
+    <div class="tk-top">
+      <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tr('Миссия','Mission')} · ${tf(t.typeLine)}</span>
+      <span class="tk-status">${tr('Готова к старту','Ready to start')}</span>
     </div>
+    <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Сделаю это','I will do this')}</h4>
+    <div class="tk-goal">${tf(t.tagline)}</div>
+    <dl class="tk-dl">
+      <div><dt>${tr('Срок','Duration')}</dt><dd>${tf(t.big)}</dd></div>
+      <div><dt>${tr('Отчёт','Report')}</dt><dd>${tf(t.reportDefault)}</dd></div>
+    </dl>
+    <div class="tk-cta" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Запустить эту миссию','Launch this mission')}</div>
   </div>`;
 }
 
 function partnerCard(t){
-  return `<div class="ticket2" onclick="openTicket('${t.id}')">
-    <div style="margin-bottom:8px;">${yaTag('Я делаю это','I\'m doing this')}</div>
-    <div class="t2-top"><div class="t2-big">${tf(t.big)}</div><div class="t2-brand">${tf(t.brand)}</div></div>
-    <div class="t2-type">${tf(t.typeLine)}</div>
-    <div class="t2-tagline">${tf(t.tagline)}</div>
-    <div class="t2-goal">
-      <div class="t2-goal-text">${tf(t.goalDefault)} · ${tr('награда','reward')}: ${tf(t.reward)}</div>
-      <button class="t2-edit" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Подробнее','Details')}</button>
+  return `<div class="tk-card" onclick="openTicket('${t.id}')">
+    <div class="tk-top">
+      <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tf(t.typeLine)}</span>
+      <span class="tk-status">${tr('Готова к старту','Ready to start')}</span>
     </div>
+    <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Сделаю это','I will do this')}</h4>
+    <div class="tk-goal">${tf(t.tagline)}</div>
+    <dl class="tk-dl">
+      <div><dt>${tr('Срок','Duration')}</dt><dd>${tf(t.big)}</dd></div>
+      <div><dt>${tr('Награда','Reward')}</dt><dd>${tf(t.reward)}</dd></div>
+    </dl>
+    <div class="tk-cta" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Подробнее','Details')}</div>
   </div>`;
 }
 
 function gatewayCard(t){
-  return `<div class="ticket2" onclick="openTicket('${t.id}')">
-    <div style="margin-bottom:8px;">${yaTag('Я делаю это','I\'m doing this')}</div>
-    <div class="t2-top"><div class="t2-big">${tf(t.big)}</div><div class="t2-participants">${t.participants} 👥</div></div>
-    <div class="t2-type">${tf(t.typeLine)}</div>
-    <div class="t2-tagline">${tf(t.tagline)}</div>
-    <div class="t2-goal">
-      <div class="t2-goal-text">${tf(t.goalDefault)} · ${tr('автор','by')}: ${t.author}</div>
-      <button class="t2-edit" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Присоединиться','Join')}</button>
+  return `<div class="tk-card" onclick="openTicket('${t.id}')">
+    <div class="tk-top">
+      <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tf(t.typeLine)}</span>
+      <span class="tk-status">${t.participants} ${tr('участников','joined')}</span>
     </div>
+    <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Сделаю это','I will do this')}</h4>
+    <div class="tk-goal">${tf(t.tagline)}</div>
+    <dl class="tk-dl">
+      <div><dt>${tr('Срок','Duration')}</dt><dd>${tf(t.big)}</dd></div>
+      <div><dt>${tr('Автор','From')}</dt><dd>${t.author}</dd></div>
+    </dl>
+    <div class="tk-cta" onclick="event.stopPropagation(); openTicket('${t.id}')">${tr('Присоединиться','Join')}</div>
   </div>`;
 }
 
@@ -1851,6 +2018,13 @@ function feedThreadLink(groupIndex, count){
 function isValidMediaUrl(u){
   return !!u && typeof u==='string' && /^(https?:|data:)/.test(u.trim());
 }
+function mediaLoadFailed(el){
+  const msg = el.getAttribute('data-fallback') || tr('Медиа недоступно','Media unavailable');
+  const div = document.createElement('div');
+  div.className = 'post-media-fallback';
+  div.textContent = msg;
+  el.replaceWith(div);
+}
 
 function postCard(p, groupIndex, count){
   // Real DB posts (illuminator_posts rows) always carry a `grad` -less shape —
@@ -1867,12 +2041,21 @@ function postCard(p, groupIndex, count){
     // failed to load" glyph sitting above the post (the big concentric-circle
     // icon reported in the Illuminator feed). Validate the URL shape up front
     // and also hide the element defensively on a runtime load error.
+    // 2026-09-26: a video that fails to load (e.g. a webm recorded on Android
+    // played back on an iPhone's WKWebView, which can't decode VP8/VP9) used
+    // to just vanish (display:none) — the post then looked empty, which is
+    // exactly what was reported as "Illuminator has no videos from anyone."
+    // Now a failed video swaps in a visible, honest placeholder instead of
+    // disappearing, via mediaLoadFailed() (see its definition) so at least
+    // the post reads as "a video was here" rather than as broken/missing.
+    const videoFallbackMsg = tr('Видео не воспроизводится на этом устройстве','Video won\'t play on this device');
+    const photoFallbackMsg = tr('Фото не загрузилось','Photo failed to load');
     const media = isValidMediaUrl(p.video_url)
-      ? `<video src="${p.video_url}" controls playsinline preload="metadata" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;" onerror="this.style.display='none'"></video>`
+      ? `<video src="${p.video_url}" controls playsinline preload="metadata" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;" data-fallback="${videoFallbackMsg}" onerror="mediaLoadFailed(this)"></video>`
       : isValidMediaUrl(p.photo_url)
-        ? `<img src="${p.photo_url}" loading="lazy" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;display:block;" onerror="this.style.display='none'">`
+        ? `<img src="${p.photo_url}" loading="lazy" style="width:100%;border-radius:14px;background:#000;max-height:340px;object-fit:cover;display:block;" data-fallback="${photoFallbackMsg}" onerror="mediaLoadFailed(this)">`
         : '';
-    return `<div class="post">
+    return `<div class="post-tk">
       <div class="post-head"><div class="avatar" style="width:34px;height:34px;font-size:14px;">${initial}</div><div><div class="pname">${p.author_name||tr('Пилот','Pilot')}</div><div class="ptag">${tag}</div></div></div>
       ${postContextBadge(p)}
       ${media}
@@ -1884,7 +2067,7 @@ function postCard(p, groupIndex, count){
     </div>`;
   }
   const playing = state.illumPlaying===p.id;
-  return `<div class="post">
+  return `<div class="post-tk">
     <div class="post-head"><div class="avatar" style="width:34px;height:34px;font-size:14px;">${p.letter}</div><div><div class="pname">${p.author}</div><div class="ptag">${tf(p.tag)}</div></div></div>
     ${postContextBadge(p)}
     <div class="post-video ${playing?'playing':''}" style="background:${p.grad}" onclick="togglePostVideo('${p.id}')">
@@ -2312,12 +2495,12 @@ const SCREENS = {
     // + its own translated slogan line instead of showing Cyrillic.
     const isEn = state.lang === 'en';
     return `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:22px;padding-top:60px;">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:18px;padding-top:8px;">
         ${isEn ? `
-          <div style="font-family:var(--font-display);font-style:italic;font-size:54px;font-weight:700;letter-spacing:.01em;text-transform:uppercase;">ТЯГА</div>
-          <p class="lead" style="max-width:220px;font-family:var(--font-display);font-style:italic;font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-dim);">To do this.</p>
+          <div style="font-family:var(--font-display);font-style:italic;font-size:40px;font-weight:700;letter-spacing:.01em;text-transform:uppercase;">ТЯГА</div>
+          <p class="lead" style="max-width:220px;font-family:var(--font-body);font-style:italic;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);">To do this.</p>
         ` : `
-          <img src="${LOGO_TAIL_URI}" alt="ТЯГА — Сделать это" style="width:min(78vw,320px);height:auto;">
+          <img src="${LOGO_TAIL_URI}" alt="ТЯГА — Сделать это" style="width:min(52vw,190px);height:auto;">
         `}
         <button class="btn primary block" style="max-width:200px;" onclick="go(isOnboarded() ? 'tickets' : 'onboardLang',{replace:true})">${tr('Начать','Start')}</button>
       </div>
@@ -2391,21 +2574,29 @@ const SCREENS = {
 
   tickets(){
     state.showNav = true;
-    const tab = state.ticketsTab || 'own';
+    const tab = state.ticketsTab || null;
     const byType = t => READY_TICKETS.filter(x=>x.type===t);
+    // Fixed layout per Maksim's 2026-09-28 spec — every block below has a
+    // permanent position and never reflows based on tab/content length:
+    // welcome header → CTA → static prompt → tabs → (mission list, only
+    // once a tab is tapped).
     return `
       <div class="eyebrow">${tr('Шаг 1','Step 1')}</div>
       <h1>${tr('Добро пожаловать в ЦУЦ','Welcome to Mission Control')}</h1>
       <p class="lead" style="margin-top:-6px;">${tr('(Центр управления целями)','(Goal Mission Control)')}</p>
-      <button class="btn primary block" style="margin:14px 0 18px;font-size:17px;padding:18px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-weight:900;font-style:italic;" onclick="go('typeSelect')">${tr('Выбрать свою цель','Choose your own goal')}</button>
-      <div class="cuc-tabs">
-        <div class="cuc-tab ${tab==='own'?'active':''}" onclick="setTicketsTab('own')">${tr('Готовые миссии','Ready-made missions')}</div>
+
+      <button class="btn primary block" style="margin:18px 0 22px;font-size:28.5px;line-height:1.15;padding:30px 22px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;box-shadow:0 16px 34px -12px rgba(255,255,255,.4);" onclick="go('typeSelect')">${tr('Начни свою миссию','Start your mission')}</button>
+
+      <h2 style="margin:0 0 4px;">${tr('Выбери направление','Pick a direction')}</h2>
+      <p class="hint" style="margin:0 0 16px;">${tr('Нажми одну из кнопок ниже, чтобы увидеть миссии этой категории.','Tap one of the buttons below to see missions in that category.')}</p>
+
+      <div class="cuc-tabs" style="margin:0 0 20px;">
+        <div class="cuc-tab ${tab==='own'?'active':''}" onclick="setTicketsTab('own')">${tr('Готовые','Ready-made')}<br>${tr('миссии','missions')}</div>
         <div class="cuc-tab ${tab==='radar'?'active':''}" onclick="setTicketsTab('radar')">${tr('Зона','Zone')}<br>${tr('Радара','Radar')}</div>
         <div class="cuc-tab ${tab==='gateway'?'active':''}" onclick="setTicketsTab('gateway')">${tr('Открытый','Open')}<br>${tr('Шлюз','Airlock')}</div>
       </div>
-      ${tab==='own' ? `
-        <h2 style="margin-top:4px;">${tr('Выбери готовую миссию','Pick a ready-made mission')}</h2>
-        <p class="hint" style="margin:-2px 0 12px;">${tr('Самый быстрый путь — выбери готовую программу и запусти её сразу.','The fastest way — pick a ready-made program and launch it right away.')}</p>
+
+      ${!tab ? '' : tab==='own' ? `
         <h3 style="margin:14px 0 6px;">${tr('Привычка','Habit')}</h3>
         ${byType('Привычка').map(ticketCard).join('')}
         <h3 style="margin:18px 0 6px;">${tr('Результат','Result')}</h3>
@@ -2413,12 +2604,8 @@ const SCREENS = {
         <h3 style="margin:18px 0 6px;">${tr('Аскеза','Ascesa')}</h3>
         ${byType('Аскеза').map(ticketCard).join('')}
       ` : tab==='radar' ? `
-        <h2 style="margin-top:4px;">${tr('Зона Радара','Radar Zone')}</h2>
-        <p class="hint" style="margin:-2px 0 12px;">${tr('Миссии от партнёров и брендов — выполняй и получай реальные призы и скидки.','Missions from partners and brands — complete them for real prizes and discounts.')}</p>
         ${PARTNER_MISSIONS.map(partnerCard).join('')}
       ` : `
-        <h2 style="margin-top:4px;">${tr('Открытый Шлюз','Open Airlock')}</h2>
-        <p class="hint" style="margin:-2px 0 12px;">${tr('Миссии, которые запустили другие пользователи — присоединяйся к чужой орбите.','Missions other users have launched — join someone else\'s orbit.')}</p>
         ${GATEWAY_MISSIONS.map(gatewayCard).join('')}
       `}
     `;
@@ -2430,15 +2617,15 @@ const SCREENS = {
       <h1>${tr('Какую миссию запускаем?','Which mission are we launching?')}</h1>
       <div class="stack" style="margin-top:14px;">
         <div class="card" style="cursor:pointer;" onclick="go('habitBasics')">
-          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Привычка','Habit')}</div>
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Привычка','Habit')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Ежедневные повторяющиеся действия (сформировать привычку)','Daily Repetitive Actions<br>Build a Habit')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('rGoal')">
-          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Результат','Result')}</div>
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Результат','Result')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Дойти до конкретной точки в будущем (достичь конкретного результата)','Reach Some Point in the Future<br>Achieve a Specific Result')}</div>
         </div>
         <div class="card" style="cursor:pointer;" onclick="go('aGoal')">
-          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.02em;font-style:italic;">${tr('Аскеза','Ascesa')}</div>
+          <div style="font-weight:900;font-size:19px;font-family:var(--font-display);font-style:italic;text-transform:uppercase;letter-spacing:0.02em;">${tr('Аскеза','Ascesa')}</div>
           <div class="hint" style="margin-top:4px;">${tr('Осознанный отказ от привычки','An Act of Asceticism<br>Willingly Give Up a Habit')}</div>
         </div>
       </div>
@@ -2780,16 +2967,25 @@ const SCREENS = {
       <div class="eyebrow">${tr('Главная','Home')}</div>
       <h1>${tr('Твои миссии','Your missions')}</h1>
       ${mentorActivationBanner()}
+      ${checkinHomeBanner()}
       ${state.missions.length===0 ? `<div class="placeholder-box" style="cursor:pointer;" onclick="go('tickets')">${tr('Пока пусто. Нажми ниже, чтобы запустить первую миссию.','Nothing here yet. Tap below to launch your first mission.')}</div>` :
-        state.missions.map((m,i)=>`
-          <div class="mission-card" onclick="openMissionCheck(${i})">
-            <div style="margin-bottom:8px;">${yaTag('Я делаю это','I\'m doing this')}</div>
-            <div class="mtop"><span class="mtitle">${tf(m.title)}</span><span class="mtype">${typeLabel(m.type)}</span></div>
-            ${m.meaning ? `<div class="mdesc">${tf(m.meaning)}</div>` : ''}
-            <div class="track"><i style="width:${m.progress}%"></i></div>
-            <div class="mission-meta"><span>${tr('Тяга','Thrust')}: ${m.progress}%</span><span>${tr('Крейсерская тяга','Cruising thrust')}</span></div>
-          </div>
-        `).join('')
+        state.missions.map((m,i)=>{
+          const req = requiredReportsFor(m);
+          return `<div class="tk-card" onclick="openMissionCheck(${i})">
+            <div class="tk-top">
+              <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tr('Миссия','Mission')} · ${typeLabel(m.type)}</span>
+              <span class="tk-status">${req ? `${tr('Отчёт','Report')} ${(m.reportCount||0)} / ${req}` : tr('В пути','Underway')}</span>
+            </div>
+            <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Делаю это','I\'m doing this')}</h4>
+            <div class="tk-goal">${tf(m.title)}</div>
+            <div class="tk-bar"><i style="width:${m.progress}%"></i></div>
+            <dl class="tk-dl">
+              <div><dt>${tr('Тяга','Thrust')}</dt><dd>${m.progress}%</dd></div>
+              <div><dt>${tr('Финиш','Finish')}</dt><dd>${m.targetDate || '—'}</dd></div>
+            </dl>
+            <div class="tk-cta" onclick="event.stopPropagation(); openMissionCheck(${i})">${tr('Отчитаться по этой миссии','Report on this mission')}</div>
+          </div>`;
+        }).join('')
       }
       <button class="btn primary block" style="margin-top:14px;" onclick="go('tickets')">${state.missions.length===0 ? tr('Запустить первую миссию','Launch your first mission') : tr('+ Новая миссия','+ New mission')}</button>
       <button class="fab" title="${tr('Новая миссия','New mission')}" onclick="go('tickets')">+</button>
@@ -2956,23 +3152,20 @@ const SCREENS = {
 
   profile(){
     state.showNav = true;
-    const open = state.form.profileExpanded;
     const p = state.profile;
-    const totalCompleted = dopuskTotal(p);
     const totalDrive = driveTotal(p);
-    const rank = computeDopuskRank(totalCompleted);
     const trustLevel = computeTrustLevel(p.reputation.total);
-    const types = ['Привычка','Результат','Аскеза'];
     const displayName = (p.name && p.name.trim()) || tr('Гость','Guest');
+    const unlockedBadges = BADGES.filter(b=>b.check(p).unlocked).length;
     return `
       <div class="eyebrow">${tr('Профиль','Profile')}</div>
       <div class="profile-head">
         ${p.avatarUrl ? `<div class="avatar" style="background-image:url('${p.avatarUrl}');background-size:cover;background-position:center;"></div>` : `<div class="avatar">${displayName[0]}</div>`}
         <div>
           <div style="font-weight:700;">${displayName}</div>
-          <div class="hint">${p.joined ? tr('в Тяге с','on Tyaga since')+' '+dateLabel(p.joined)+' · ' : ''}${p.followers} ${tr('болельщиков','followers')}</div>
+          <div class="hint">${p.followers} ${tr('болельщиков','followers')}</div>
         </div>
-        <div class="trust-badge" title="${tr('Уровень доверия — растёт вместе с репутацией','Trust level — grows with reputation')}">
+        <div class="trust-badge" onclick="go('levelDetail')" title="${tr('Уровень доверия — нажми для подробностей','Trust level — tap for details')}">
           <span class="trust-badge-icon"><img src="${YASHIELD_URI}" alt="Я"></span>
           <span class="trust-badge-level">${trustLevel}</span>
         </div>
@@ -2980,90 +3173,224 @@ const SCREENS = {
       ${p.bio ? `<p class="lead" style="margin:8px 0 4px;">${p.bio}</p>` : ''}
       <button class="btn ghost block" style="margin:8px 0 4px;font-size:12.5px;" onclick="openProfileEdit()">${tr('Редактировать профиль','Edit profile')}</button>
 
-      <div class="stat-strip" onclick="toggleProfile()">
+      <div class="stat-strip3">
         <div class="cell"><div class="val">${p.ls.total.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Л.С.','FH')}</div></div>
         <div class="cell"><div class="val">${p.reputation.total.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Репутация','Reputation')}</div></div>
-        <div class="cell"><div class="val">${rankLabel(rank.name)}</div><div class="lbl">${tr('Допуск','Clearance')}</div></div>
         <div class="cell"><div class="val">${totalDrive}</div><div class="lbl">${tr('Драйв','Drive')}</div></div>
       </div>
-      <p class="hint" style="margin:2px 0 10px;">${tr('Л.С. видны только тебе. Репутация видна всем.','Flight Hours are private to you. Reputation is public.')}</p>
-      ${p.streak.current>0 ? `<p class="hint" style="margin:-4px 0 10px;">${tr(`Серия чек-инов: ${p.streak.current} ${dayWord(p.streak.current)} подряд (рекорд — ${p.streak.longest}).`, `Check-in streak: ${p.streak.current} day${p.streak.current===1?'':'s'} in a row (best — ${p.streak.longest}).`)}</p>` : ''}
-      ${Object.values(p.vouchers||{}).some(v=>v>0) ? `<div class="card" style="margin-bottom:10px;">
-        <div class="t-title" style="margin-bottom:6px;">${tr('Награды за серию','Streak rewards')}</div>
+      <div class="stat-strip2">
+        <div class="cell"><div class="val">${p.followers.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Подписчики','Followers')}</div></div>
+        <div class="cell"><div class="val">${(p.support.received||0).toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Поддержка получена','Support received')}</div></div>
+      </div>
+      ${p.streak.current>0 ? `<p class="hint" style="margin:6px 0 4px;">🔥 ${p.streak.current} ${dayWord(p.streak.current)} ${tr('подряд','in a row')}</p>` : ''}
+
+      <div class="profile-nav-row pnr-invert" onclick="go('checkinRoad')">
+        <span class="pnr-label">${tr('Радиообмен','Radio check-in')}</span>
+        <span class="pnr-meta">${p.checkin.streak} ${dayWord(p.checkin.streak)} ›</span>
+      </div>
+      <div class="profile-nav-row" onclick="go('achievementsScreen')">
+        <span class="pnr-label">${tr('Ачивки','Achievements')}</span>
+        <span class="pnr-meta">${unlockedBadges}/${BADGES.length} ›</span>
+      </div>
+      <div class="profile-nav-row" onclick="go('crewScreen')">
+        <span class="pnr-label">${tr('Экипаж','Crew')}</span>
+        <span class="pnr-meta">${p.crew.inspiredCount} ›</span>
+      </div>
+      <div class="profile-nav-row" onclick="go('missionVideosScreen')">
+        <span class="pnr-label">${tr('Видео по миссиям','Mission videos')}</span>
+        <span class="pnr-meta">${state.missions.length} ›</span>
+      </div>
+      <div class="profile-nav-row" onclick="go('completedMissionsScreen')">
+        <span class="pnr-label">${tr('Завершённые миссии','Completed missions')}</span>
+        <span class="pnr-meta">${p.completed.length} ›</span>
+      </div>
+    `;
+  },
+
+  // Standalone daily check-in "space road" — a winding path of 15 waypoints
+  // (planet/star/galaxy per Maksim's brief), independent of the mission-report
+  // streak. The visible cycle wraps every 15 days; state.profile.checkin.streak
+  // keeps counting forever underneath it (see CHECKIN_CYCLE / claimCheckin()).
+  checkinRoad(){
+    const c = state.profile.checkin;
+    const today = todayISO();
+    const alreadyToday = c.lastDate === today;
+    const yesterday = addDaysISO(-1);
+    const continuing = c.lastDate === yesterday || c.lastDate === today;
+    // The day we're currently ON (already claimed today) or ABOUT TO claim.
+    const activeAbsoluteDay = alreadyToday ? c.streak : (continuing ? c.streak+1 : 1);
+    const cycleDay = checkinCycleDay(activeAbsoluteDay);
+    const lap = Math.floor((activeAbsoluteDay-1)/CHECKIN_CYCLE.length) + 1;
+    const nodes = CHECKIN_CYCLE.map(r=>{
+      let st;
+      if (r.day < cycleDay) st = 'done';
+      else if (r.day === cycleDay) st = alreadyToday ? 'done-today' : 'claimable';
+      else st = 'future';
+      return {...r, st};
+    });
+    // Shown once, right after tapping "Выйти на связь" — consumed here so a
+    // later, unrelated re-render of this same screen doesn't repeat it.
+    const justRevealed = !!state.checkinRevealPending;
+    state.checkinRevealPending = false;
+    const points = checkinMapPoints();
+    const fullPathD = smoothPathD(points);
+    const traveledPathD = smoothPathD(points.slice(0, Math.max(1, cycleDay)));
+    return screenShell(`
+      <div class="eyebrow">${tr('Радиообмен','Radio check-in')}</div>
+      <h1>${tr('Космическая карта','Space map')}</h1>
+      <p class="hint" style="margin:-4px 0 14px;">${tr('Ежедневный сеанс связи с ЦУЦ открывает Terra Incognito — весь лут, что найдёшь на этой земле, твой.','A daily radio session with Mission Control opens up Terra Incognito — all the loot you find on that land is yours.')}</p>
+
+      <div class="road-stats">
+        <div class="cell"><div class="val">${c.streak}</div><div class="lbl">${tr('Серия','Streak')}</div></div>
+        <div class="cell"><div class="val">${c.longest}</div><div class="lbl">${tr('Рекорд','Best')}</div></div>
+        <div class="cell"><div class="val">${lap}</div><div class="lbl">${tr('Круг','Lap')}</div></div>
+      </div>
+
+      ${justRevealed && state.lastCheckinReward ? `
+      <div class="road-reveal">
+        <div class="rr-label">${tr('Локация открыта','Location unlocked')}</div>
+        <div class="rr-found">${tr('Найдено:','Found:')}</div>
+        <div class="rr-reward">${tf(state.lastCheckinReward)}</div>
+      </div>` : ''}
+
+      <div class="road-map">
+        <svg viewBox="0 0 ${CHECKIN_MAP_W} ${CHECKIN_MAP_H}" preserveAspectRatio="none">
+          <path d="${fullPathD}" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="1 7" stroke-linecap="round"/>
+          <path d="${traveledPathD}" fill="none" stroke="var(--invert-bg)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+        </svg>
+        ${nodes.map((r,i)=>{
+          const kind = checkinWaypointKind(r.day);
+          const pt = points[i];
+          const isShip = r.st==='claimable';
+          const glyph = isShip ? '▲' : (r.st==='done'||r.st==='done-today') ? '✓' : CHECKIN_KIND_GLYPH[kind];
+          return `
+          <div class="road-wp kind-${kind} rn-${r.st}" style="left:${(pt.x/CHECKIN_MAP_W*100).toFixed(2)}%;top:${(pt.y/CHECKIN_MAP_H*100).toFixed(2)}%;">
+            <div class="wp-dot">${glyph}</div>
+            <div class="wp-day">${r.day}</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="road-claim-bar">
+        ${alreadyToday
+          ? `<button class="btn ghost block" disabled style="opacity:.6;">${tr('Сегодня уже в эфире — возвращайся завтра','Already on the air today — come back tomorrow')}</button>`
+          : `<button class="btn primary block" onclick="doClaimCheckin()">${tr('Выйти на связь','Check in now')}</button>`
+        }
+      </div>
+
+      <h3 style="margin:20px 0 6px;">${tr('Журнал вылазок','Expedition log')}</h3>
+      ${c.history && c.history.length
+        ? c.history.slice(0,40).map(h=>`<div class="road-hist-row"><span class="rh-day">${tr('День','Day')} ${h.day}</span><span class="rh-reward">${tf(h)}</span></div>`).join('')
+        : `<p class="hint">${tr('Пока пусто — выйди на связь, чтобы начать журнал.','Empty so far — check in to start your log.')}</p>`
+      }
+    `, {step: tr('Карта','Map')});
+  },
+
+  levelDetail(){
+    const p = state.profile;
+    const trustLevel = computeTrustLevel(p.reputation.total);
+    const nextThreshold = reputationThresholdFor(trustLevel+1);
+    const curThreshold = reputationThresholdFor(trustLevel);
+    const pct = Math.min(100, Math.round(((p.reputation.total-curThreshold)/(nextThreshold-curThreshold))*100));
+    return screenShell(`
+      <div class="eyebrow">${tr('Уровень доверия','Trust level')}</div>
+      <div class="level-hero">
+        <div class="level-hero-badge"><img src="${YASHIELD_URI}" alt="Я"><span class="level-hero-num">${trustLevel}</span></div>
+        <div class="level-hero-label">${tr('Уровень доверия','Trust level')}</div>
+      </div>
+      <p class="hint" style="margin:-4px 0 4px;text-align:center;">${tr(`До уровня ${trustLevel+1}: ещё ${nextThreshold-p.reputation.total} репутации (${pct}%)`, `To level ${trustLevel+1}: ${nextThreshold-p.reputation.total} more reputation (${pct}%)`)}</p>
+      <div class="track" style="margin:6px 0 16px;"><i style="width:${pct}%"></i></div>
+
+      ${trustLevel>=5 ? `<p class="hint" style="margin:10px 0;">${tr('С 5 уровня — уникальные миссии и миссии от партнёров, недоступные раньше.','From level 5 — unique missions and partner-only missions you couldn\'t access before.')}</p>` : ''}
+      ${trustLevel>=8 ? `<div class="card" style="margin:10px 0;">
+        <div class="t-title" style="margin-bottom:6px;">${tr('8 уровень открыт','Level 8 unlocked')}</div>
+        <p class="hint" style="margin:0;">${tr('Доступен личный специалист — психолог, тренер, теннисный коуч и другие. Напиши в поддержку, чтобы подобрать подходящего.','A real human specialist is now available — psychologist, gym coach, tennis coach, and others. Message support to get matched.')}</p>
+      </div>` : ''}
+
+      ${Object.values(p.vouchers||{}).some(v=>v>0) ? `<h2 style="margin-top:18px;">${tr('Награды за серию','Streak rewards')}</h2>
+      <div class="card" style="margin-bottom:10px;">
         ${p.vouchers.merchDiscountPct ? `<div class="summary-line"><span class="k">${tr('Скидка на мерч','Merch discount')}</span><span class="v">${p.vouchers.merchDiscountPct}%</span></div>` : ''}
         ${p.vouchers.freeEnhancement ? `<div class="summary-line"><span class="k">${tr('Бесплатные усиления','Free boosts')}</span><span class="v">${p.vouchers.freeEnhancement}</span></div>` : ''}
         ${p.vouchers.freeHumanMentorSession ? `<div class="summary-line"><span class="k">${tr('Сессии с человеком-наставником','Human mentor sessions')}</span><span class="v">${p.vouchers.freeHumanMentorSession}</span></div>` : ''}
         ${p.vouchers.freeMission ? `<div class="summary-line"><span class="k">${tr('Бесплатные миссии','Free missions')}</span><span class="v">${p.vouchers.freeMission}</span></div>` : ''}
       </div>` : ''}
+      <p class="hint">${tr('Л.С. видны только тебе. Репутация видна всем.','Flight Hours are private to you. Reputation is public.')}</p>
+    `, {step: tr('Уровень','Level')});
+  },
 
-      <div class="card" style="margin-bottom:10px;">
-        <div class="t-title" style="margin-bottom:6px;">${tr('Призы недели и месяца','This week\'s & this month\'s prizes')}</div>
-        <div class="summary-line"><span class="k">${tr('Неделя','Week')}</span><span class="v">${tf(CURRENT_PRIZES.week)}</span></div>
-        <div class="summary-line"><span class="k">${tr('Месяц','Month')}</span><span class="v">${tf(CURRENT_PRIZES.month)}</span></div>
-      </div>
-      ${trustLevel>=8 ? `<div class="card" style="margin-bottom:10px;">
-        <div class="t-title" style="margin-bottom:6px;">${tr('8 уровень открыт','Level 8 unlocked')}</div>
-        <p class="hint" style="margin:0;">${tr('Тебе доступен личный специалист — психолог, тренер, теннисный коуч и другие, по твоему запросу. Напиши в поддержку, чтобы подобрать подходящего.','You now have access to a real human specialist — a psychologist, gym coach, tennis coach, and others, matched to what you need. Message support to get matched.')}</p>
-      </div>` : ''}
-
-      <div class="rank-ladder">
-        ${DOPUSK_RANKS.map((r,i)=>`
-          <div class="rl-step ${i<=rank.idx?'done':''} ${i===rank.idx?'current':''}">
-            <div class="rl-dot"></div>
-            <div class="rl-icon">${icon(RANK_ICONS[r.name])}</div>
-            <div class="rl-label">${rankLabel(r.name)}</div>
-          </div>
-        `).join('')}
-      </div>
-      <p class="hint" style="margin:2px 0 16px;text-align:center;">
-        ${rank.next ? tr(`До ранга «${rankLabel(rank.next.name)}»: ещё ${rank.next.min - totalCompleted} заверш. ${missionWord(rank.next.min - totalCompleted)} (${rank.pct}%)`, `To rank “${rankLabel(rank.next.name)}”: ${rank.next.min - totalCompleted} more completed ${missionWord(rank.next.min - totalCompleted,'en')} (${rank.pct}%)`) : tr('Высший ранг Допуска достигнут — дальше только легенда растёт числом миссий.','Highest Clearance rank reached — from here the legend only grows by mission count.')}
-      </p>
-
-      <div class="expand-hint">${open? tr('▲ Свернуть по типам','▲ Collapse by type') : tr('▼ Показать по типам целей','▼ Show by goal type')}</div>
-      <div class="type-breakdown ${open?'open':''}">
-        ${types.map(t=>{
-          const tRank = computeDopuskRank(p.completedByType[t]||0);
-          return `<div class="type-row"><span class="tn">${typeLabel(t)}</span><span class="tv">${(p.ls.byType[t]||0).toLocaleString(state.lang==='en'?'en-US':'ru-RU')} ${tr('Л.С.','FH')} · ${(p.reputation.byType[t]||0).toLocaleString(state.lang==='en'?'en-US':'ru-RU')} ${tr('реп.','rep.')} · ${rankLabel(tRank.name)} · ${tr('Драйв','Drive')} ${p.launchedByType[t]||0}</span></div>`;
-        }).join('')}
-      </div>
-
-      <h2 style="margin-top:20px;">${tr('Ачивки','Achievements')}</h2>
+  achievementsScreen(){
+    const p = state.profile;
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Ачивки','Achievements')}</h1>
       <div class="badge-row2">${BADGES.map(b=>badgeCard(b,p)).join('')}</div>
       ${badgeInfoBox()}
+    `, {step: tr('Ачивки','Achievements')});
+  },
 
-      <h2 style="margin-top:20px;">${tr('Экипаж','Crew')}</h2>
-      <p class="hint" style="margin:-2px 0 10px;">${tr(`Твои цели вдохновили ${p.crew.inspiredCount} ${personWord(p.crew.inspiredCount)} запустить такую же.`, `Your goals have inspired ${p.crew.inspiredCount} ${personWord(p.crew.inspiredCount,'en')} to launch the same one.`)}</p>
+  crewScreen(){
+    const p = state.profile;
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Экипаж','Crew')}</h1>
+      <p class="hint" style="margin:-4px 0 10px;">${tr(`Твои цели вдохновили ${p.crew.inspiredCount} ${personWord(p.crew.inspiredCount)} запустить такую же.`, `Your goals have inspired ${p.crew.inspiredCount} ${personWord(p.crew.inspiredCount,'en')} to launch the same one.`)}</p>
       ${p.crew.clones.length===0 ? `<div class="placeholder-box">${tr('Пока никто не скопировал твою цель — как только это случится, увидишь здесь.','No one has copied your goal yet — you\'ll see it here the moment it happens.')}</div>` :
         p.crew.clones.map(c=>`
           <div class="crew-row"><span class="crew-goal">«${tf(c.goal)}»</span><span class="crew-by">${tr(`вдохновила ${c.by} ${personWord(c.by)}`, `inspired ${c.by} ${personWord(c.by,'en')}`)}</span></div>
         `).join('')
       }
+    `, {step: tr('Экипаж','Crew')});
+  },
 
-      <h2 style="margin-top:20px;">${tr('Видео по миссиям','Mission videos')}</h2>
-      <p class="hint" style="margin:-2px 0 8px;">${tr('Обещание и все отчёты по каждой активной миссии.','The promise and every report on each active mission.')}</p>
+  missionVideosScreen(){
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Видео по миссиям','Mission videos')}</h1>
+      <p class="hint" style="margin:-4px 0 8px;">${tr('Обещание и все отчёты по каждой активной миссии.','The promise and every report on each active mission.')}</p>
       ${state.missions.length===0 ? `<div class="placeholder-box">${tr('Пока нет активных миссий.','No active missions yet.')}</div>` :
-        state.missions.map((m,i)=>`
-          <div class="mission-card" onclick="openMissionThread(${i})">
-            <div style="margin-bottom:8px;">${yaTag('Я делаю это','I\'m doing this')}</div>
-            <div class="mtop"><span class="mtitle">${tf(m.title)}</span><span class="mtype">${typeLabel(m.type)}</span></div>
-            ${m.meaning ? `<div class="mdesc">${tf(m.meaning)}</div>` : ''}
-            <div class="hint">${tr('День','Day')} ${(m.reportCount||0)+1} · ${tr('смотреть видео','watch videos')}</div>
-          </div>
-        `).join('')
+        state.missions.map((m,i)=>{
+          const req = requiredReportsFor(m);
+          return `<div class="tk-card" onclick="openMissionThread(${i})">
+            <div class="tk-top">
+              <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tr('Миссия','Mission')} · ${typeLabel(m.type)}</span>
+              <span class="tk-status">${req ? `${tr('Отчёт','Report')} ${(m.reportCount||0)} / ${req}` : tr('В пути','Underway')}</span>
+            </div>
+            <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Делаю это','I\'m doing this')}</h4>
+            <div class="tk-goal">${tf(m.title)}</div>
+            <dl class="tk-dl">
+              <div><dt>${tr('Отчёт','Report')}</dt><dd>${(m.reportCount||0)+1}</dd></div>
+              <div><dt>${tr('Видео','Videos')}</dt><dd>${tr('Смотреть','Watch')}</dd></div>
+            </dl>
+            <div class="tk-cta" onclick="event.stopPropagation(); openMissionThread(${i})">${tr('Смотреть видео по миссии','Watch mission videos')}</div>
+          </div>`;
+        }).join('')
       }
+    `, {step: tr('Видео','Videos')});
+  },
 
-      <h2 style="margin-top:20px;">${tr('Завершённые миссии','Completed missions')}</h2>
+  completedMissionsScreen(){
+    const p = state.profile;
+    return screenShell(`
+      <div class="eyebrow">${tr('Профиль','Profile')}</div>
+      <h1>${tr('Завершённые миссии','Completed missions')}</h1>
       ${p.completed.length===0 ? `<div class="placeholder-box">${tr('Пока нет завершённых — первая на подходе.','No completions yet — the first one is on its way.')}</div>` :
         p.completed.map(m=>`
-          <div class="completed-card">
-            <div style="margin-bottom:6px;">${yaTag('Я сделал это','I did this')}</div>
-            <div class="cc-top"><span class="cc-title">${tf(m.title)}</span><span class="cc-type">${typeLabel(m.type)}</span></div>
-            ${m.report ? `<div class="mdesc" style="margin:0 0 6px;">${tf(m.report)}</div>` : ''}
-            <div class="cc-meta">${m.days} ${tr('дней','days')} · ${tr('завершено','completed')} ${dateLabel(m.finished)}${m.firstCosmic ? ' · <span class="cc-cosmic">'+icon('bolt')+' '+tr('Первая космическая','Escape Velocity')+'</span>' : ''}</div>
+          <div class="tk-card">
+            <div class="tk-top">
+              <span class="tk-tag"><img src="${YASHIELD_URI}" alt="Я">${tr('Миссия выполнена','Mission complete')}</span>
+            </div>
+            <h4 class="tk-verb"><img src="${YASHIELD_URI}" alt="Я">${tr('Сделал это','I did this')}</h4>
+            <div class="tk-goal">${tf(m.title)}</div>
+            <div class="tk-rw">
+              <div><b>${tr('Длительность','Duration')}</b>${m.days} ${tr('дней','days')}</div>
+              <div><b>${tr('Завершено','Completed')}</b>${dateLabel(m.finished)}</div>
+              ${m.firstCosmic ? `<div><b>${tr('Отметка','Badge')}</b>${icon('bolt')} ${tr('Первая космическая','Escape Velocity')}</div>` : ''}
+              ${m.report ? `<div><b>${tr('Отчёт','Report')}</b>${tf(m.report)}</div>` : ''}
+            </div>
           </div>
         `).join('')
       }
-    `;
+    `, {step: tr('Завершённые','Completed')});
   },
 
   illuminator(){
@@ -4864,6 +5191,124 @@ function registerDailyActivity(){
   // ongoing loyalty reward rather than a one-off.
   if (s.current >= 30 && s.current % 30 === 0) grantStreakReward(30);
 }
+
+// Daily check-in "space road" (2026-09-28, Maksim's spec) — a SEPARATE,
+// standalone daily tap-in, independent of the mission-report streak above.
+// It has its own button and its own screen (a winding path of planets/stars,
+// one per day). The raw day counter (profile.checkin.streak) counts forever
+// and never resets except on a missed day, but the visible reward CYCLE
+// wraps every 15 days: day 16 shows the same reward as day 1, etc. — the
+// counter itself keeps climbing so "longest streak" stays meaningful.
+const CHECKIN_CYCLE = [
+  { day:1,  type:'ls',      amount:50,  ru:'50 Л.С.',                      en:'50 Flight Hours' },
+  { day:2,  type:'ls',      amount:100, ru:'100 Л.С.',                     en:'100 Flight Hours' },
+  { day:3,  type:'ls',      amount:200, ru:'200 Л.С.',                     en:'200 Flight Hours' },
+  { day:4,  type:'ls',      amount:300, ru:'300 Л.С.',                     en:'300 Flight Hours' },
+  { day:5,  type:'ls',      amount:500, ru:'500 Л.С.',                     en:'500 Flight Hours' },
+  { day:6,  type:'rep',     amount:30,  ru:'30 репутации',                 en:'30 reputation' },
+  { day:7,  type:'voucher', key:'merchDiscountPct', amount:10, ru:'Скидка 10% на мерч · 72 часа', en:'10% merch discount · 72 hours' },
+  { day:8,  type:'ls',      amount:500, ru:'500 Л.С.',                     en:'500 Flight Hours' },
+  { day:9,  type:'voucher', key:'freeEnhancement', amount:1, ru:'Секретное бесплатное усиление', en:'A secret free enhancement' },
+  { day:10, type:'rep',     amount:50,  ru:'50 репутации',                 en:'50 reputation' },
+  { day:11, type:'ls',      amount:500, ru:'500 Л.С.',                     en:'500 Flight Hours' },
+  { day:12, type:'voucher', key:'freeEnhancement', amount:1, ru:'Ещё одно секретное усиление', en:'Another secret enhancement' },
+  { day:13, type:'badge',   key:'checkinLucky', ru:'Счастливый значок — сюрприз', en:'Lucky badge — a surprise' },
+  { day:14, type:'rep',     amount:100, ru:'100 репутации',                en:'100 reputation' },
+  { day:15, type:'voucher', key:'freeHumanMentorSession', amount:1, ru:'Бесплатное живое участие человека', en:'A free session with a real human' },
+];
+function checkinCycleDay(absoluteDay){ return ((absoluteDay-1) % CHECKIN_CYCLE.length) + 1; }
+// Waypoint "kind" for the space-map screen — purely visual grouping, never
+// reveals the actual reward (2026-09-28: "don't reveal what's inside").
+// gift days = the literal named gifts (7/9/12/15); signal = reputation
+// days (6/10/14); fuel = everything else (1/2/3/4/5/8/11).
+const CHECKIN_GIFT_DAYS = [7,9,12,15];
+const CHECKIN_SIGNAL_DAYS = [6,10,14];
+function checkinWaypointKind(day){
+  if (CHECKIN_GIFT_DAYS.includes(day)) return 'gift';
+  if (CHECKIN_SIGNAL_DAYS.includes(day)) return 'signal';
+  return 'fuel';
+}
+const CHECKIN_KIND_GLYPH = { fuel:'●', signal:'✦', gift:'◆' };
+// 15-point snake grid for the space-map screen (3 columns × 5 rows) — this is
+// what makes it read as one continuous road from day 1 to day 15 instead of a
+// plain list: alternating rows run left→right then right→left, like a
+// board-game path, so consecutive days are always adjacent on screen.
+// Coordinates are in a fixed 300×260 unit space; the screen positions every
+// dot with a left/top PERCENTAGE of that space so it scales with viewport
+// width while staying pixel-locked to the SVG connector drawn in the same
+// units (see .road-map / .road-map svg — aspect-ratio:300/260 keeps them in sync).
+const CHECKIN_MAP_W = 300, CHECKIN_MAP_H = 260;
+const CHECKIN_COL_X = [50, 150, 250];
+const CHECKIN_ROW_Y = [26, 78, 130, 182, 234];
+function checkinMapPoints(){
+  const pts = [];
+  for (let day=1; day<=CHECKIN_CYCLE.length; day++){
+    const row = Math.floor((day-1)/3);
+    const idxInRow = (day-1)%3;
+    const col = (row%2===0) ? idxInRow : (2-idxInRow);
+    pts.push({ day, x: CHECKIN_COL_X[col], y: CHECKIN_ROW_Y[row] });
+  }
+  return pts;
+}
+// Smooth curve through a point sequence (Catmull-Rom → cubic Bézier) — used
+// so the road between waypoints reads as one continuous flight path rather
+// than a jagged straight-segment polyline ("smooth broken line" per Maksim).
+function smoothPathD(points){
+  if (points.length < 2) return '';
+  let d = `M ${points[0].x} ${points[0].y} `;
+  for (let i=0; i<points.length-1; i++){
+    const p0 = points[i-1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i+1];
+    const p3 = points[i+2] || p2;
+    const c1x = p1.x + (p2.x - p0.x)/6, c1y = p1.y + (p2.y - p0.y)/6;
+    const c2x = p2.x - (p3.x - p1.x)/6, c2y = p2.y - (p3.y - p1.y)/6;
+    d += `C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y} `;
+  }
+  return d;
+}
+function checkinRewardFor(absoluteDay){ return CHECKIN_CYCLE[checkinCycleDay(absoluteDay)-1]; }
+function grantCheckinReward(reward){
+  if (reward.type === 'ls'){
+    state.profile.ls.total += reward.amount;
+  } else if (reward.type === 'rep'){
+    state.profile.reputation.total += reward.amount;
+  } else if (reward.type === 'voucher'){
+    state.profile.vouchers[reward.key] = (state.profile.vouchers[reward.key]||0) + reward.amount;
+  } else if (reward.type === 'badge'){
+    state.profile.badges.push({ id: reward.key, earnedAt: todayISO() });
+  }
+}
+// Returns null if today's reward was already claimed; otherwise claims it,
+// updates the streak, grants the reward, persists, and returns the reward
+// that was just granted (for a confirmation toast/screen).
+function claimCheckin(){
+  const c = state.profile.checkin;
+  const today = todayISO();
+  if (c.lastDate === today) return null;
+  const yesterday = addDaysISO(-1);
+  if (c.lastDate === yesterday) c.streak += 1;
+  else c.streak = 1; // gap, or very first check-in ever
+  c.lastDate = today;
+  c.longest = Math.max(c.longest, c.streak);
+  const reward = checkinRewardFor(c.streak);
+  grantCheckinReward(reward);
+  if (!c.history) c.history = [];
+  c.history.unshift({ day: c.streak, ru: reward.ru, en: reward.en, date: today });
+  dbUpsertUserStats();
+  return reward;
+}
+// onclick wrapper for "Выйти на связь" on the checkinRoad screen — claims
+// today's reward (if not already claimed) and re-renders the SAME screen
+// with the just-revealed prize shown inline under the map (2026-09-28:
+// "must reveal the present underneath... have a track record"), instead of
+// navigating away to a separate confirmation screen like the first cut did.
+function doClaimCheckin(){
+  const reward = claimCheckin();
+  if (reward) { state.lastCheckinReward = reward; state.checkinRevealPending = true; }
+  go('checkinRoad', {replace:true});
+}
+
 function bumpMission(i, reportKind){
   const idx = (i!=null) ? i : (state.checkinMissionIndex!=null ? state.checkinMissionIndex : 0);
   const m = state.missions[idx];
