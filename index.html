@@ -703,6 +703,11 @@
   .sugg-vote.voted{background:#fff;color:#000;}
   .sugg-vote .sv-label{font-size:8px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;}
   .sugg-vote.voted .sv-label{color:#000;opacity:.6;}
+  .dots{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
+  .dots i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.25;animation:tyDot 1.2s infinite}
+  .dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+  @keyframes tyDot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .btn.busy{pointer-events:none;opacity:.7}
 </style>
 </head>
 <body>
@@ -879,6 +884,22 @@ function paymentReference(kind){
   const f = kind==='result' ? state.result : (kind==='askeza' ? state.askeza : state.form);
   return { kind, mentor: f.mentor ? f.mentor.name : null, boosts: boostsForDb(f.boosts) };
 }
+// One checkout = one key, kept on the device until the mission is created.
+// The server turns (user, key, selection) into exactly one payment, however many
+// times the button is pressed or the app is reopened.
+function checkoutKey(kind){
+  const k = 'tyaga_ck_' + TG_ID + '_' + kind;
+  let v = null;
+  try { v = localStorage.getItem(k); } catch(e){}
+  if (!v) {
+    v = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    try { localStorage.setItem(k, v); } catch(e){}
+  }
+  return v;
+}
+function resetCheckoutKey(kind){ try { localStorage.removeItem('tyaga_ck_' + TG_ID + '_' + kind); } catch(e){} }
+function retryPayment(kind){ resetCheckoutKey(kind); state.payment = null; doInitiatePayment(kind); }
+const DOTS = '<span class="dots"><i></i><i></i><i></i></span>';
 function paidPaymentId(){
   return (state.payment && state.payment.status==='succeeded') ? state.payment.paymentId : null;
 }
@@ -904,6 +925,8 @@ async function doInitiatePayment(kind){
   try { await doInitiatePaymentInner(kind, cfg); } finally { paymentInFlight = false; }
 }
 async function doInitiatePaymentInner(kind, cfg){
+  state.payment = { kind, status:'creating', error:null, paymentId:null };
+  go('awaitingPayment');
   const ref = paymentReference(kind);
   let amount = cfg.total();
   if (sb) {
@@ -919,11 +942,9 @@ async function doInitiatePaymentInner(kind, cfg){
     // no visible error. Skip checkout entirely and go straight to the
     // confirmation screen, which is what actually creates the mission.
     state.payment = null;
-    go(cfg.confirmScreen);
+    go(cfg.confirmScreen, {replace:true});
     return;
   }
-  state.payment = { kind, status:'creating', error:null, paymentId:null };
-  render();
   try {
     const res = await fetch(PAYMENT_FUNCTIONS_BASE + 'create-payment', {
       method:'POST',
@@ -934,9 +955,17 @@ async function doInitiatePaymentInner(kind, cfg){
         amount_kopeks: Math.round(amount*100),
         description: 'ТЯГА · ' + cfg.label(),
         reference: ref,
+        checkout_key: checkoutKey(kind),
       }),
     });
     const data = await res.json().catch(()=>null);
+    if (res.ok && data && data.already_paid && data.payment_id) {
+      state.payment.paymentId = data.payment_id;
+      state.payment.status = 'succeeded';
+      go(cfg.confirmScreen, {replace:true});
+      return;
+    }
+    if (res.ok && data && data.free) { state.payment = null; go(cfg.confirmScreen, {replace:true}); return; }
     if (!res.ok || !data || !data.confirmation_url) {
       state.payment.status = 'error';
       state.payment.error = (data && data.error) || ('http_'+res.status);
@@ -946,7 +975,7 @@ async function doInitiatePaymentInner(kind, cfg){
     state.payment.paymentId = data.payment_id;
     state.payment.confirmationUrl = data.confirmation_url;
     state.payment.status = 'awaiting';
-    go('awaitingPayment');
+    render();
     openPaymentUrl(data.confirmation_url);
     pollPayment();
   } catch(e){
@@ -975,19 +1004,7 @@ function pollPayment(){
     if (!state.payment || !state.payment.paymentId) { clearInterval(paymentPollHandle); return; }
     try {
       if (elapsed % 10000 === 0) verifyPaymentOnServer(state.payment.paymentId);
-      const { data } = await sb.rpc('tyaga_payment_status', { p_id: state.payment.paymentId });
-      if (data && data.id && data.id !== state.payment.paymentId) state.payment.paymentId = data.id;
-      if (data && data.status === 'succeeded') {
-        clearInterval(paymentPollHandle);
-        state.payment.status = 'succeeded';
-        const cfg = PAYMENT_KIND_CONFIG[state.payment.kind];
-        safeRender();
-        go(cfg.confirmScreen, {replace:true});
-      } else if (data && data.status === 'canceled') {
-        clearInterval(paymentPollHandle);
-        state.payment.status = 'canceled';
-        safeRender();
-      }
+      await paymentStatusOnce();
     } catch(e){ /* keep polling — a transient network hiccup shouldn't abort the wait */ }
     if (elapsed > 120000 && state.payment && state.payment.status === 'awaiting') {
       clearInterval(paymentPollHandle);
@@ -1007,6 +1024,24 @@ function cancelPaymentWait(){
   state.payment = null;
   back();
 }
+async function paymentStatusOnce(){
+  if (!state.payment || !state.payment.paymentId || !sb) return;
+  const { data } = await sb.rpc('tyaga_payment_status', { p_id: state.payment.paymentId });
+  if (!state.payment) return;
+  if (data && data.id && data.id !== state.payment.paymentId) state.payment.paymentId = data.id;
+  if (data && data.status === 'succeeded' && state.payment.status !== 'succeeded') {
+    if (paymentPollHandle) clearInterval(paymentPollHandle);
+    state.payment.status = 'succeeded';
+    state.payment.checking = false;
+    const cfg = PAYMENT_KIND_CONFIG[state.payment.kind];
+    go(cfg.confirmScreen, {replace:true});
+  } else if (data && data.status === 'canceled') {
+    if (paymentPollHandle) clearInterval(paymentPollHandle);
+    state.payment.status = 'canceled';
+    state.payment.checking = false;
+    safeRender();
+  }
+}
 // Asks the server to re-check the payment directly with ЮKassa (in case the
 // notification is late). Safe: the server only trusts ЮKassa's own answer.
 function verifyPaymentOnServer(paymentId){
@@ -1017,10 +1052,17 @@ function verifyPaymentOnServer(paymentId){
   }).catch(()=>{});
 }
 async function recheckPaymentNow(){
-  if (!state.payment) return;
-  state.payment.status = 'awaiting'; render();
-  await verifyPaymentOnServer(state.payment.paymentId);
-  pollPayment();
+  if (!state.payment || state.payment.checking) return;
+  state.payment.status = 'awaiting'; state.payment.checking = true; render();
+  try {
+    await verifyPaymentOnServer(state.payment.paymentId);
+    await paymentStatusOnce();
+  } catch(e){}
+  if (state.payment && state.payment.status !== 'succeeded') {
+    state.payment.checking = false;
+    safeRender();
+    pollPayment();
+  }
 }
 // tr(ru, en) — returns the string matching state.lang. Called `tr` (not `t`)
 // because several screen functions already use a local variable named `t`.
@@ -3033,7 +3075,7 @@ const SCREENS = {
     // every re-render while the user is on this screen (any safeRender() that
     // fires from an unrelated async op — e.g. dbUpsertUserStats resolving —
     // would otherwise insert a second, identical mission row). Create once.
-    if (!state.form.missionCreated) { state.form.missionCreated = true; addMissionFromForm(); }
+    if (!state.form.missionCreated) { state.form.missionCreated = true; addMissionFromForm(); resetCheckoutKey('habit'); }
     const name = state.form.mentor ? state.form.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Экипаж на месте, курс проложен. Через 3... 2... 1... старт! Увидимся на орбите. Приём.','Pshhhh... Crew in position, course is set. In 3... 2... 1... liftoff! See you in orbit. Over.')
@@ -4053,7 +4095,7 @@ const SCREENS = {
   rConfirm(){
     // Guarded — see confirm() above: without this, a re-render while on this
     // screen inserts a duplicate mission row.
-    if (!state.result.missionCreated) { state.result.missionCreated = true; addResultMissionFromForm(); }
+    if (!state.result.missionCreated) { state.result.missionCreated = true; addResultMissionFromForm(); resetCheckoutKey('result'); }
     const name = state.result.mentor ? state.result.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Курс на цель проложен, все этапы отмечены на карте. Через 3... 2... 1... старт! Приём.','Pshhhh... Course to the goal is set, all milestones marked on the map. In 3... 2... 1... liftoff! Over.')
@@ -4271,11 +4313,14 @@ const SCREENS = {
     const p = state.payment || {};
     const kindLabel = PAYMENT_KIND_CONFIG[p.kind] ? PAYMENT_KIND_CONFIG[p.kind].label() : '';
     let body;
-    if (p.status === 'succeeded') {
-      body = `<p class="lead">${tr('Оплата прошла — переходим дальше.','Payment went through — moving on.')}</p>`;
+    if (p.status === 'creating') {
+      body = `<p class="lead">${tr('Создаём платёж','Creating the payment')}${DOTS}</p>
+        <p class="hint">${tr('Обычно это занимает несколько секунд. Сейчас откроется страница оплаты ЮKassa.','This usually takes a few seconds. The ЮKassa payment page will open.')}</p>`;
+    } else if (p.status === 'succeeded') {
+      body = `<p class="lead">${tr('Оплата прошла — переходим дальше','Payment went through — moving on')}${DOTS}</p>`;
     } else if (p.status === 'canceled') {
       body = `<p class="lead">${tr('Платёж отменён или не прошёл.','The payment was canceled or failed.')}</p>
-        <button class="btn primary block" style="margin-top:14px;" onclick="doInitiatePayment('${p.kind}')">${tr('Попробовать снова','Try again')}</button>
+        <button class="btn primary block" style="margin-top:14px;" onclick="retryPayment('${p.kind}')">${tr('Попробовать снова','Try again')}</button>
         <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
     } else if (p.status === 'timeout') {
       body = `<p class="lead">${tr('Не видим подтверждения оплаты уже 2 минуты.','We haven\'t seen a confirmed payment for 2 minutes.')}</p>
@@ -4285,8 +4330,10 @@ const SCREENS = {
       body = `<p class="lead">${tr('Не получилось создать платёж.','Couldn\'t create the payment.')} ${p.error==='age_not_confirmed' ? tr('Нужно подтвердить возраст.','Age needs to be confirmed.') : (p.error==='yookassa_not_configured' ? tr('Оплата ещё не подключена — это тестовая сборка.','Payment isn\'t connected yet — this is a test build.') : '')}</p>
         <button class="btn ghost block" style="margin-top:14px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
     } else {
-      body = `<p class="lead">${tr('Ждём подтверждения оплаты — не закрывай приложение.','Waiting for payment confirmation — keep the app open.')}</p>
-        <button class="btn ghost block" style="margin-top:14px;" onclick="recheckPaymentNow()">${tr('Я оплатил — проверить','I paid — check now')}</button>
+      body = `<p class="lead">${p.checking ? tr('Проверяем оплату','Checking the payment') : tr('Ждём подтверждения оплаты','Waiting for payment confirmation')}${DOTS}</p>
+        <p class="hint">${tr('Не закрывай приложение — после оплаты мы перейдём дальше сами.','Keep the app open — we\'ll move on by ourselves once you pay.')}</p>
+        <button class="btn ghost block ${p.checking?'busy':''}" style="margin-top:14px;" onclick="recheckPaymentNow()">${p.checking ? tr('Проверяем','Checking')+DOTS : tr('Я оплатил — проверить','I paid — check now')}</button>
+        ${p.confirmationUrl ? `<button class="btn ghost block" style="margin-top:10px;" onclick="openPaymentUrl(state.payment.confirmationUrl)">${tr('Открыть страницу оплаты','Open the payment page')}</button>` : ''}
         <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('Отменить','Cancel')}</button>`;
     }
     return screenShell(`
@@ -4299,7 +4346,7 @@ const SCREENS = {
   aConfirm(){
     // Guarded — see confirm() above: without this, a re-render while on this
     // screen inserts a duplicate mission row.
-    if (!state.askeza.missionCreated) { state.askeza.missionCreated = true; addAskezaMissionFromForm(); }
+    if (!state.askeza.missionCreated) { state.askeza.missionCreated = true; addAskezaMissionFromForm(); resetCheckoutKey('askeza'); }
     const name = state.askeza.mentor ? state.askeza.mentor.name : 'Космонавт';
     const text = name==='Космонавт'
       ? tr('Пшшщщщ... Ну что, командир, экипаж на месте, курс проложен — только на этот раз это твой личный контракт с гравитацией, никто его для тебя не подписывал. Я на связи, если что. Удачи там, за атмосферой. Отбой.','Pshhhh... Well, commander, crew\'s in position, course is set — except this time it\'s your own personal contract with gravity, nobody signed it for you. I\'m on the line if you need me. Good luck out there, beyond the atmosphere. Over and out.')
