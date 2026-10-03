@@ -887,9 +887,23 @@ async function initiatePayment(kind){
   requireAge18ThenRun(() => doInitiatePayment(kind));
 }
 
+let paymentInFlight = false;
 async function doInitiatePayment(kind){
   const cfg = PAYMENT_KIND_CONFIG[kind];
   if (!cfg) return;
+  // One checkout at a time: a second tap (or a re-render) reopens the same
+  // payment instead of creating a duplicate one.
+  if (state.payment && state.payment.kind === kind && state.payment.paymentId && state.payment.status === 'awaiting') {
+    go('awaitingPayment');
+    if (state.payment.confirmationUrl) openPaymentUrl(state.payment.confirmationUrl);
+    pollPayment();
+    return;
+  }
+  if (paymentInFlight) return;
+  paymentInFlight = true;
+  try { await doInitiatePaymentInner(kind, cfg); } finally { paymentInFlight = false; }
+}
+async function doInitiatePaymentInner(kind, cfg){
   const ref = paymentReference(kind);
   let amount = cfg.total();
   if (sb) {
@@ -930,6 +944,7 @@ async function doInitiatePayment(kind){
       return;
     }
     state.payment.paymentId = data.payment_id;
+    state.payment.confirmationUrl = data.confirmation_url;
     state.payment.status = 'awaiting';
     go('awaitingPayment');
     openPaymentUrl(data.confirmation_url);
@@ -959,7 +974,9 @@ function pollPayment(){
     elapsed += 2000;
     if (!state.payment || !state.payment.paymentId) { clearInterval(paymentPollHandle); return; }
     try {
-      const { data } = await sb.from('payments').select('status').eq('id', state.payment.paymentId).maybeSingle();
+      if (elapsed % 10000 === 0) verifyPaymentOnServer(state.payment.paymentId);
+      const { data } = await sb.rpc('tyaga_payment_status', { p_id: state.payment.paymentId });
+      if (data && data.id && data.id !== state.payment.paymentId) state.payment.paymentId = data.id;
       if (data && data.status === 'succeeded') {
         clearInterval(paymentPollHandle);
         state.payment.status = 'succeeded';
@@ -979,13 +996,31 @@ function pollPayment(){
     }
   }, 2000);
 }
+// Coming back from the ЮKassa page: check right away instead of waiting.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.payment && state.payment.status === 'awaiting') {
+    verifyPaymentOnServer(state.payment.paymentId).then(() => pollPayment());
+  }
+});
 function cancelPaymentWait(){
   if (paymentPollHandle) clearInterval(paymentPollHandle);
   state.payment = null;
   back();
 }
-function recheckPaymentNow(){
-  if (state.payment) { state.payment.status = 'awaiting'; render(); pollPayment(); }
+// Asks the server to re-check the payment directly with ЮKassa (in case the
+// notification is late). Safe: the server only trusts ЮKassa's own answer.
+function verifyPaymentOnServer(paymentId){
+  if (!paymentId) return Promise.resolve();
+  return fetch(PAYMENT_FUNCTIONS_BASE + 'yookassa-webhook', {
+    method:'POST', mode:'no-cors', headers:{ 'Content-Type':'text/plain' },
+    body: JSON.stringify({ tyaga_payment_id: paymentId }),
+  }).catch(()=>{});
+}
+async function recheckPaymentNow(){
+  if (!state.payment) return;
+  state.payment.status = 'awaiting'; render();
+  await verifyPaymentOnServer(state.payment.paymentId);
+  pollPayment();
 }
 // tr(ru, en) — returns the string matching state.lang. Called `tr` (not `t`)
 // because several screen functions already use a local variable named `t`.
