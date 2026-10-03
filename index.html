@@ -2461,7 +2461,7 @@ const BADGES = [
     check:p=>({unlocked: driveTotal(p)>=1}) },
   { id:'first_landing', icon:'flag', name:{ru:'Финишная черта',en:'Finish Line'}, desc:{ru:'Завершил первую миссию целиком — Репутация пошла в рост.',en:"Completed your first mission in full — your Reputation starts climbing."},
     check:p=>({unlocked: dopuskTotal(p)>=1}) },
-  { id:'crew_commander', icon:'medal-star', name:{ru:'Командир экипажа',en:'Crew Commander'}, desc:{ru:'3 завершённые миссии — допуск подтверждён официально.',en:"3 completed missions — your clearance is now official."},
+  { id:'crew_commander', icon:'medal-star', name:{ru:'Командир экипажа',en:'Crew Commander'}, desc:{ru:'3 завершённые миссии — Репутация подтверждена официально.',en:"3 completed missions — your Reputation is now official."},
     check:p=>({unlocked: dopuskTotal(p)>=3, progress:Math.min(dopuskTotal(p),3)+'/3'}) },
   { id:'orbit_veteran', icon:'medal-1st', name:{ru:'Ветеран орбиты',en:'Orbit Veteran'}, desc:{ru:'6 завершённых миссий — держишь слово системно, а не от случая к случаю.',en:"6 completed missions — you keep your word consistently, not just once in a while."},
     check:p=>({unlocked: dopuskTotal(p)>=6, progress:Math.min(dopuskTotal(p),6)+'/6'}) },
