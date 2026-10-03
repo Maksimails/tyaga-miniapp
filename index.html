@@ -762,8 +762,8 @@ const USER_NAME_EN = 'Alex';
 // ВНИМАНИЕ: на этом этапе доступ к базе идёт по anon key без проверки
 // подписи Telegram initData — осознанный компромисс для закрытого теста.
 // Перед публичным запуском заменить на проверку через Edge Function.
-const SUPABASE_URL = 'https://digeevjdjzrkogninmbt.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpZ2Vldmpkanpya29nbmlubWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTA5MjgsImV4cCI6MjEwMzkyNjkyOH0.0bGZPfKL9W5JvyHE9nYkDVZxRvoSlvf5HotuWJrHwqc';
+const SUPABASE_URL = 'https://api.tyaga.tech';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkwOTcyMjE1LCJleHAiOjE5NDg2NTIyMTV9.TgOxDZCJyfsZspkhuDr7fF1F8J2fLdh83f1Bjj2qaKc';
 let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
