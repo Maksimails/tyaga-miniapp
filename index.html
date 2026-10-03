@@ -866,11 +866,22 @@ const PAYMENT_KIND_CONFIG = {
   askeza: { total: () => totalAskezaPrice(),   confirmScreen: 'aConfirm', label: () => tr('Аскеза','Ascesis') },
 };
 
-// TESTING-PERIOD KILL SWITCH: while true, doInitiatePayment skips checkout
-// entirely for every mission (habit/result/askeza), same as the existing
-// ₽0 short-circuit below, so testers can launch a mission without paying.
-// Flip to false to restore the real payment flow.
-const TESTING_FREE_MISSIONS = true;
+// The amount is always computed on the server (public.tyaga_quote): first
+// mission free, missions 0₽, paid mentors/boosts charged; app_config.free_missions
+// = true makes everything free for a testing period. The client total is display only.
+function boostsForDb(b){
+  b = b || {};
+  const out = { witnessCount: ((b.witnessList||[]).filter(w=>w && String(w).trim()).length) || 1 };
+  ['public','witnesses','system','support','alterDates','triggerAnalysis','secondChance','aiAnalysis'].forEach(k=>{ out[k] = !!b[k]; });
+  return out;
+}
+function paymentReference(kind){
+  const f = kind==='result' ? state.result : (kind==='askeza' ? state.askeza : state.form);
+  return { kind, mentor: f.mentor ? f.mentor.name : null, boosts: boostsForDb(f.boosts) };
+}
+function paidPaymentId(){
+  return (state.payment && state.payment.status==='succeeded') ? state.payment.paymentId : null;
+}
 
 async function initiatePayment(kind){
   requireAge18ThenRun(() => doInitiatePayment(kind));
@@ -879,14 +890,20 @@ async function initiatePayment(kind){
 async function doInitiatePayment(kind){
   const cfg = PAYMENT_KIND_CONFIG[kind];
   if (!cfg) return;
-  const amount = cfg.total();
-  if (amount <= 0 || TESTING_FREE_MISSIONS) {
+  const ref = paymentReference(kind);
+  let amount = cfg.total();
+  if (sb) {
+    try {
+      const { data: q, error: qErr } = await sb.rpc('tyaga_quote', { p_user: TG_ID, p_kind: kind, p_mentor: ref.mentor, p_boosts: ref.boosts });
+      if (!qErr && typeof q === 'number') amount = q;
+    } catch (e) { /* fall back to the displayed total; the server re-checks anyway */ }
+  }
+  if (amount <= 0) {
     // Nothing to charge (e.g. a free fast-track "ready ticket" mission whose
     // duration carries price:0) — ЮKassa correctly refuses to create a ₽0
     // payment, which used to leave the user stuck on the payment screen with
     // no visible error. Skip checkout entirely and go straight to the
     // confirmation screen, which is what actually creates the mission.
-    // (TESTING_FREE_MISSIONS forces this path for every mission right now.)
     state.payment = null;
     go(cfg.confirmScreen);
     return;
@@ -902,7 +919,7 @@ async function doInitiatePayment(kind){
         purpose: 'tariff',
         amount_kopeks: Math.round(amount*100),
         description: 'ТЯГА · ' + cfg.label(),
-        reference: { kind },
+        reference: ref,
       }),
     });
     const data = await res.json().catch(()=>null);
@@ -1017,7 +1034,7 @@ const LABEL_EN = {
   'Аналитик':'Analyst','Боец':'Fighter','Творец':'Creator','Опекун':'Caretaker','Не знаю':"Don't know",
   'Поддержка':'Support','Соревнование':'Competition','И то, и другое':'Both',
   'Да':'Yes','Нет':'No','Не задумывался':"Hadn't thought about it",
-  'Свой срок':'Custom length','Без ставки':'No stake','Свой ответ':'My own answer',
+  'Свой срок':'Custom length','Свой ответ':'My own answer',
   'Мужской':'Male','Женский':'Female',
   'Бегать по утрам':'Go running in the morning','Читать':'Read','Пить воду':'Drink water','Медитировать':'Meditate',
   'Отжиматься до отказа':'Do push-ups to failure','Спать до 23:00':'Sleep by 11pm','Не пить кофе после 15:00':'No coffee after 3pm','Учить английский':'Learn English',
@@ -1124,6 +1141,12 @@ async function hydrateFromDB(){
         state.lang = userRow.language;
       }
     }
+    // Free/paid switch lives on the server (public.app_config.free_missions), so
+    // testing periods are toggled with one SQL update — no app redeploy.
+    try {
+      const { data: cfgRow } = await sb.from('app_config').select('value').eq('key','free_missions').maybeSingle();
+      state.freeMissions = !!(cfgRow && cfgRow.value === true);
+    } catch (e) { state.freeMissions = false; }
     if (!dbUserIsNew) {
       const { data: activeMissions } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','active').order('created_at', { ascending:false });
       if (activeMissions) {
@@ -1186,14 +1209,23 @@ async function dbUpsertUserStats(){
   } catch (e) { console.warn('dbUpsertUserStats failed', e); }
 }
 
-async function dbCreateMission(mission, mentorName){
+async function dbCreateMission(mission, mentorName, extra){
   if (!sb) return;
+  extra = extra || {};
   try {
-    const { data } = await sb.from('missions').insert({
+    const { data, error } = await sb.from('missions').insert({
+      boosts: extra.boosts || {}, payment_id: extra.paymentId || null,
       user_id: TG_ID, type: mission.type, title: mission.title, mentor: mentorName || null, progress: mission.progress,
       target_days: mission.totalDays || null, target_date: mission.targetDate || null, meaning: mission.meaning || null,
       promise_freq: mission.freq || null, promise_freq_days: mission.freqDays || [], promise_freq_event: mission.freqEvent || null
     }).select('id').maybeSingle();
+    if (error) {
+      console.warn('dbCreateMission refused', error);
+      if (String(error.message||'').includes('payment_required')) {
+        const msg = tr('Оплата не найдена — миссия с платными опциями не создана. Попробуй ещё раз.','Payment not found — the mission with paid options was not created. Please try again.');
+        try { window.Telegram.WebApp.showAlert(msg); } catch(_) { alert(msg); }
+      }
+    }
     if (data) mission.dbId = data.id;
   } catch (e) { console.warn('dbCreateMission failed', e); }
 }
@@ -1340,7 +1372,7 @@ const state = {
     persistence: 60,
     meaning: '',
     mentor: null, // {name, price}
-    boosts: { stake:null, public:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false, triggerAnalysis:false, secondChance:false },
+    boosts: { public:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false, triggerAnalysis:false, secondChance:false },
     videoDone: false,
     profileExpanded: false,
     fastTrack: false,
@@ -1359,7 +1391,7 @@ const state = {
     tier: null, // 'free' | 'full' — set by rTierChoice, drives the free-tier fast path
     freeWhen: '', // lightweight "when" field collected only on the merged free-tier screen (rGoal3P)
     proofType: null, // 'video' | 'photo' | 'text' — collected on rGoal3P (free) or defaults on the paid path
-    boosts: { aiAnalysis:false, stake:null, public:false, secondChance:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false },
+    boosts: { aiAnalysis:false, public:false, secondChance:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false },
     videoDone: false,
     missionCreated: false
   },
@@ -1372,7 +1404,7 @@ const state = {
     customDeadline: '',
     videoDone: false, videoSkipped: false,
     mentor: null,
-    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null },
+    boosts: { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false },
     missionCreated: false
   },
   quiz: {},
@@ -1755,11 +1787,10 @@ function effectiveTheme(){
 }
 
 function totalPrice(){
-  if(isFirstMissionFree()) return 0;
+  if(state.freeMissions || isFirstMissionFree()) return 0;
   let sum = 0;
   if(state.form.duration) sum += state.form.duration.price;
   if(state.form.mentor && state.form.mentor.price) sum += state.form.mentor.price;
-  if(state.form.boosts.stake) sum += 0; // stake is charged only on failure, not added to purchase price
   if(state.form.boosts.public) sum += 1000;
   if(state.form.boosts.witnesses){
     const n = state.form.boosts.witnessList.filter(w=>w.trim()).length || 1;
@@ -1780,7 +1811,7 @@ function chip(label, active, onclick){
 // Real ЮKassa checkout card, shared by the three payment screens (Habit/
 // Result/Ascesis) — replaces the old two fake "Apple Pay" / "Карта" rows
 // that just navigated to confirm() with nothing actually charged.
-function paymentCard(kind, stakeNote){
+function paymentCard(kind){
   const amount = PAYMENT_KIND_CONFIG[kind].total();
   if (amount <= 0) {
     // Free mission (e.g. a fast-track "ready ticket") — nothing to charge,
@@ -1800,7 +1831,6 @@ function paymentCard(kind, stakeNote){
       </div>
     </div>
     <p class="hint" style="margin-top:10px;">${tr('Оплата открывается в браузере Telegram — после оплаты ты автоматически вернёшься сюда.','Checkout opens inside Telegram\'s browser — you\'ll be brought back here automatically once it\'s done.')}</p>
-    ${stakeNote ? `<p class="hint" style="margin-top:14px;">${tr('Отдельно сохраним карту для усиления обещания — спишется один раз, только при провале.','We\'ll separately save a card to back up your promise — it\'s charged once, only if you fail.')}</p>` : ''}
   `;
 }
 
@@ -2429,13 +2459,13 @@ function computeDopuskRank(completed){
 const BADGES = [
   { id:'first_launch', icon:'rocket', name:{ru:'Первый запуск',en:'First Launch'}, desc:{ru:'Запустил свою самую первую миссию — прошёл точку невозврата.',en:"Launched your very first mission — passed the point of no return."},
     check:p=>({unlocked: driveTotal(p)>=1}) },
-  { id:'first_landing', icon:'flag', name:{ru:'Финишная черта',en:'Finish Line'}, desc:{ru:'Завершил первую миссию целиком — Допуск пошёл в рост.',en:"Completed your first mission in full — your Clearance rank starts climbing."},
+  { id:'first_landing', icon:'flag', name:{ru:'Финишная черта',en:'Finish Line'}, desc:{ru:'Завершил первую миссию целиком — Репутация пошла в рост.',en:"Completed your first mission in full — your Reputation starts climbing."},
     check:p=>({unlocked: dopuskTotal(p)>=1}) },
   { id:'crew_commander', icon:'medal-star', name:{ru:'Командир экипажа',en:'Crew Commander'}, desc:{ru:'3 завершённые миссии — допуск подтверждён официально.',en:"3 completed missions — your clearance is now official."},
     check:p=>({unlocked: dopuskTotal(p)>=3, progress:Math.min(dopuskTotal(p),3)+'/3'}) },
   { id:'orbit_veteran', icon:'medal-1st', name:{ru:'Ветеран орбиты',en:'Orbit Veteran'}, desc:{ru:'6 завершённых миссий — держишь слово системно, а не от случая к случаю.',en:"6 completed missions — you keep your word consistently, not just once in a while."},
     check:p=>({unlocked: dopuskTotal(p)>=6, progress:Math.min(dopuskTotal(p),6)+'/6'}) },
-  { id:'tyaga_legend', icon:'crown', name:{ru:'Легенда Тяги',en:'Tyaga Legend'}, desc:{ru:'10 завершённых миссий — высший ранг Допуска на платформе.',en:"10 completed missions — the highest Clearance rank on the platform."},
+  { id:'tyaga_legend', icon:'crown', name:{ru:'Легенда Тяги',en:'Tyaga Legend'}, desc:{ru:'10 завершённых миссий — высшее достижение на платформе.',en:"10 completed missions — the top achievement on the platform."},
     check:p=>({unlocked: dopuskTotal(p)>=10, progress:Math.min(dopuskTotal(p),10)+'/10'}) },
   { id:'marathoner', icon:'runner', name:{ru:'Марафонец',en:'Marathoner'}, desc:{ru:'2+ завершённые Привычки — тело работает на автопилоте, дисциплина стала рефлексом.',en:"2+ completed Habits — your body runs on autopilot, discipline has become reflex."},
     check:p=>({unlocked: (p.completedByType['Привычка']||0)>=2, progress:Math.min(p.completedByType['Привычка']||0,2)+'/2'}) },
@@ -2887,7 +2917,6 @@ const SCREENS = {
   },
 
   boosts(){
-    const stakeOptions = [1000,3000,5000,10000];
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 7 · Привычка','Step 7 · Habit')}</div>
       <h1>${tr('Хочешь усилить обещание?','Want to reinforce your promise?')}</h1>
@@ -2933,13 +2962,6 @@ const SCREENS = {
         <div><div class="t-title">${tr('Второй шанс','Second chance')}</div><div class="t-desc">${tr('Один пропущенный день не обнулит серию · +300₽','One missed day won\'t break your streak · +300₽')}</div></div>
         <div class="switch ${state.form.boosts.secondChance?'on':''}" onclick="toggleFormBoost('secondChance')"><i></i></div>
       </div>
-      <div class="card" style="margin-bottom:12px;">
-        <div class="t-title">${tr('Усиление обещания рублём','Backing your promise with money')}</div>
-        <div class="t-desc" style="margin-bottom:10px;">${tr('Сумма уйдёт в одну из НКО при твоём несдержанном обещании.','The amount goes to a charity if you break your promise.')}</div>
-        <div class="row-gap">${stakeOptions.map(s=>chip(s+'₽', state.form.boosts.stake===s, `setStake(${s})`)).join('')}
-          ${chip(label('Без ставки'), !state.form.boosts.stake, `setStake(null)`)}
-        </div>
-      </div>
       <div class="toggle-row">
         <div><div class="t-title">${tr('Публичный режим','Public mode')}</div><div class="t-desc">${tr('+1000₽ · видно всем, набираешь болельщиков','+1000₽ · visible to everyone, gains you followers')}</div></div>
         <div class="switch ${state.form.boosts.public?'on':''}" onclick="togglePublic()"><i></i></div>
@@ -2956,11 +2978,9 @@ const SCREENS = {
         <div class="summary-line"><span class="k">${tr('Программа','Program')}</span><span class="v">${label(effectiveHabitName())} · ${habitDurationLabel()}</span></div>
         <div class="summary-line"><span class="k">${tr('Наставник','Mentor')}</span><span class="v">${mentorName(state.form.mentor.name)}${state.form.mentor.price?' (+'+state.form.mentor.price+'₽)':''}</span></div>
         <div class="summary-line"><span class="k">${tr('Усиления','Boosts')}</span><span class="v">${totalPrice() - (state.form.duration?state.form.duration.price:0) - (state.form.mentor&&state.form.mentor.price?state.form.mentor.price:0)}₽</span></div>
-        <div class="summary-line"><span class="k">${tr('Ставка','Stake')}</span><span class="v">${state.form.boosts.stake ? state.form.boosts.stake+'₽' : tr('нет','none')}</span></div>
         <div class="total-line"><span>${tr('Итого сегодня','Total today')}</span><span>${totalPrice()}₽</span></div>
       </div>
       ${isFirstMissionFree() ? `<p class="hint">${tr('Первая миссия — подарок от Космонавта: наставник и все усиления бесплатно.','Your first mission is on the Cosmonaut — mentor and every boost included, free.')}</p>` : ''}
-      <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
       <button class="btn primary block" style="margin-top:18px;" onclick="go('payment')">${totalPrice()>0 ? tr('Оплатить','Pay')+' '+totalPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'10П'});
   },
@@ -2969,7 +2989,7 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 9 · Привычка','Step 9 · Habit')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      ${paymentCard('habit', !!state.form.boosts.stake)}
+      ${paymentCard('habit')}
     `, {step:'11П'});
   },
 
@@ -3210,7 +3230,7 @@ const SCREENS = {
       <div class="stat-strip3">
         <div class="cell"><div class="val">${p.ls.total.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Л.С.','FH')}</div></div>
         <div class="cell"><div class="val">${p.reputation.total.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Репутация','Reputation')}</div></div>
-        <div class="cell"><div class="val">${totalDrive}</div><div class="lbl">${tr('Драйв','Drive')}</div></div>
+        <div class="cell"><div class="val">${totalDrive}</div><div class="lbl">${tr('Миссии','Missions')}</div></div>
       </div>
       <div class="stat-strip2">
         <div class="cell"><div class="val">${p.followers.toLocaleString(state.lang==='en'?'en-US':'ru-RU')}</div><div class="lbl">${tr('Подписчики','Followers')}</div></div>
@@ -3918,7 +3938,6 @@ const SCREENS = {
   },
 
   rBoosts(){
-    const stakeOptions = [1000,3000,5000,10000];
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 8 · Результат','Step 8 · Result')}</div>
       <h1>${tr('Хочешь усилить цель?','Want to reinforce your goal?')}</h1>
@@ -3960,13 +3979,6 @@ const SCREENS = {
         <div><div class="t-title">${tr('Изменить сроки','Alter the dates')}</div><div class="t-desc">${tr('Право сдвинуть или продлить дату прибытия прямо по ходу дела · +300₽','The right to shift or extend your arrival date mid-way · +300₽')}</div></div>
         <div class="switch ${state.result.boosts.alterDates?'on':''}" onclick="toggleResultBoost('alterDates')"><i></i></div>
       </div>
-      <div class="card" style="margin-bottom:12px;">
-        <div class="t-title">${tr('Усиление обещания рублём','Backing your promise with money')}</div>
-        <div class="t-desc" style="margin-bottom:10px;">${tr('Сумма уйдёт в одну из НКО при провале.','The amount goes to a charity if you fail.')}</div>
-        <div class="row-gap">${stakeOptions.map(s=>chip(s+'₽', state.result.boosts.stake===s, `setResultStake(${s})`)).join('')}
-          ${chip(label('Без ставки'), !state.result.boosts.stake, `setResultStake(null)`)}
-        </div>
-      </div>
       <div class="toggle-row">
         <div><div class="t-title">${tr('Публичный режим','Public mode')}</div><div class="t-desc">${tr('+1000₽ · попадает в Иллюминатор после модерации','+1000₽ · goes into the Viewport after moderation')}</div></div>
         <div class="switch ${state.result.boosts.public?'on':''}" onclick="toggleResultBoost('public')"><i></i></div>
@@ -3988,11 +4000,9 @@ const SCREENS = {
         <div class="summary-line"><span class="k">${tr('Срок','Deadline')}</span><span class="v">${state.result.deadline||'—'}</span></div>
         <div class="summary-line"><span class="k">${tr('Этапов','Milestones')}</span><span class="v">${state.result.milestones.length||'1'}</span></div>
         <div class="summary-line"><span class="k">${tr('Наставник','Mentor')}</span><span class="v">${mentorName(state.result.mentor.name)}${state.result.mentor.price?' (+'+state.result.mentor.price+'₽)':''}</span></div>
-        <div class="summary-line"><span class="k">${tr('Ставка','Stake')}</span><span class="v">${state.result.boosts.stake ? state.result.boosts.stake+'₽' : tr('нет','none')}</span></div>
         <div class="total-line"><span>${tr('Итого сегодня','Total today')}</span><span>${totalResultPrice()}₽</span></div>
       </div>
       ${isFirstMissionFree() ? `<p class="hint">${tr('Первая миссия — подарок от Космонавта: наставник и все усиления бесплатно.','Your first mission is on the Cosmonaut — mentor and every boost included, free.')}</p>` : ''}
-      <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
       <button class="btn primary block" style="margin-top:18px;" onclick="go('rPayment')">${totalResultPrice()>0 ? tr('Оплатить','Pay')+' '+totalResultPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'11Р'});
   },
@@ -4001,7 +4011,7 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 11 · Результат','Step 11 · Result')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      ${paymentCard('result', !!state.result.boosts.stake)}
+      ${paymentCard('result')}
     `, {step:'12Р'});
   },
 
@@ -4020,7 +4030,7 @@ const SCREENS = {
         <div class="who">${mentorName(name)}</div>
         ${text}
       </div>
-      <p class="hint" style="margin-top:10px;">${tr('Драйв в профиле уже пошёл вверх — миссия запущена.','Your Drive score just went up — mission launched.')}</p>
+      <p class="hint" style="margin-top:10px;">${tr('Счётчик миссий в профиле уже вырос — миссия запущена.','Your mission count just went up — mission launched.')}</p>
       ${mentorActivationCard(name)}
       <button class="btn block" style="margin-top:10px;" onclick="resetResultForm(); go('home',{replace:true})">${tr('Позже, сначала домой','Later, take me home first')}</button>
     `, {back:false, step:'13Р'});
@@ -4178,13 +4188,6 @@ const SCREENS = {
         <div><div class="t-title">${tr('Второй шанс','Second chance')}</div><div class="t-desc">${tr('Один пропущенный день не обнулит серию · +300₽','One missed day won\'t break your streak · +300₽')}</div></div>
         <div class="switch ${state.askeza.boosts.secondChance?'on':''}" onclick="toggleAskezaBoost('secondChance')"><i></i></div>
       </div>
-      <div class="card" style="margin-bottom:2px;">
-        <div class="t-title">${tr('Ставка на себя','Bet on yourself')}</div>
-        <div class="t-desc" style="margin-bottom:10px;">${tr('Заморозь сумму — вернётся тебе при успехе, сгорит при провале.','Freeze an amount — you get it back on success, lose it on failure.')}</div>
-        <div class="row-gap">${[1000,3000,5000,10000].map(s=>chip(s+'₽', state.askeza.boosts.selfStake===s, `setAskezaSelfStake(${s})`)).join('')}
-          ${chip(label('Без ставки'), !state.askeza.boosts.selfStake, `setAskezaSelfStake(null)`)}
-        </div>
-      </div>
       <button class="btn primary block" style="margin-top:16px;" onclick="go('aMentor')">${tr('Далее','Next')}</button>
     `, {step:'6А'});
   },
@@ -4204,11 +4207,9 @@ const SCREENS = {
         <div class="summary-line"><span class="k">${tr('Изменить сроки','Alter dates')}</span><span class="v">${boostVal(state.askeza.boosts.alterDates,300)}</span></div>
         <div class="summary-line"><span class="k">${tr('Разбор триггеров','Trigger analysis')}</span><span class="v">${boostVal(state.askeza.boosts.triggerAnalysis,300)}</span></div>
         <div class="summary-line"><span class="k">${tr('Второй шанс','Second chance')}</span><span class="v">${boostVal(state.askeza.boosts.secondChance,300)}</span></div>
-        <div class="summary-line"><span class="k">${tr('Ставка на себя','Bet on yourself')}</span><span class="v">${state.askeza.boosts.selfStake ? state.askeza.boosts.selfStake+'₽' : tr('нет','none')}</span></div>
         <div class="total-line"><span>${tr('Итого','Total')}</span><span>${totalAskezaPrice()}₽</span></div>
       </div>
       ${firstFree ? `<p class="hint">${tr('Первая миссия — подарок от Космонавта: наставник и все усиления бесплатно.','Your first mission is on the Cosmonaut — mentor and every boost included, free.')}</p>` : ''}
-      <p class="hint">${tr('Ставка спишется отдельно позже, только при провале — сегодня не входит в оплату.','The stake is charged separately later, only if you fail — it\'s not part of today\'s payment.')}</p>
       <button class="btn primary block" style="margin-top:18px;" onclick="go('aPayment')">${totalAskezaPrice()>0 ? tr('Оплатить','Pay')+' '+totalAskezaPrice()+'₽' : tr('Далее — бесплатно','Next — free')}</button>
     `, {step:'8А'});
   },
@@ -4217,7 +4218,7 @@ const SCREENS = {
     return screenShell(`
       <div class="eyebrow">${tr('Шаг 8 · Аскеза','Step 8 · Ascesa')}</div>
       <h1>${tr('Оплата','Payment')}</h1>
-      ${paymentCard('askeza', false)}
+      ${paymentCard('askeza')}
     `, {step:'8А'});
   },
 
@@ -4363,7 +4364,7 @@ const SCREENS = {
       <h1>${tr('Есть!','Got it!')}</h1>
       <div class="cosmo-msg">
         <div class="who">${tr('Космонавт','Cosmonaut')}</div>${tr('\n        Пшшщщщ... ЕСТЬ! Причём не просто долетел — ты вырвался из гравитации того, от чего бежал, а это тяжелее, чем кажется со стороны. Земля аплодирует стоя, серьёзно. Отбой, командир.\n      ','\n        Pshhhh... GOT IT! And not just made it — you broke free of the gravity of whatever you were running from, and that\'s heavier than it looks from outside. Ground Control is giving you a standing ovation, seriously. Over and out, commander.\n      ')}</div>
-      <p class="hint" style="margin-top:10px;">${tr('Засчитано в Допуск, плюс финальный бонус Л.С.','Counted toward Clearance, plus a final Flight Hours bonus.')}</p>
+      <p class="hint" style="margin-top:10px;">${tr('Засчитано в Репутацию, плюс финальный бонус Л.С.','Counted toward Reputation, plus a final Flight Hours bonus.')}</p>
       <button class="btn primary block" style="margin-top:16px;" onclick="go('home',{replace:true})">${tr('Ок','OK')}</button>
     `, {back:false, step:'D3А'});
   },
@@ -4411,7 +4412,7 @@ function isFirstMissionFree(){
 }
 function mentorPriceFor(name){
   if (!MENTORS_PAID.includes(name)) return 0;
-  if (isFirstMissionFree()) return 0;
+  if (state.freeMissions || isFirstMissionFree()) return 0;
   return state.profile.unlockedMentors.includes(name) ? 100 : 500;
 }
 async function recordMentorUnlock(name){
@@ -4603,7 +4604,6 @@ function pickRandomMentor(target){
   if(target==='result') state.result.mentor = pick; else state.form.mentor = pick;
   go(target==='result' ? 'rBoosts' : 'boosts');
 }
-function setStake(v){ state.form.boosts.stake=v; render(); }
 function toggleOnboardCheck(field){ state.onboard[field] = !state.onboard[field]; render(); }
 function setOnboardGender(g){ state.onboard.gender = g; render(); }
 function syncOnboardName(){
@@ -5037,20 +5037,20 @@ function chooseFreeTier(kind){
     state.result.tier = 'free';
     state.result.duration = { free:true, days:21 };
     state.result.mentor = { name:'Космонавт', price:0 };
-    state.result.boosts = { aiAnalysis:false, stake:null, public:false, secondChance:false };
+    state.result.boosts = { aiAnalysis:false, public:false, secondChance:false };
     state.result.proofType = 'video';
     go('rGoal3P');
   } else if(kind==='askeza'){
     state.askeza.tier = 'free';
     state.askeza.duration = { label: tr('21 день — бесплатно','21 days — free'), days:21, custom:false, free:true };
     state.askeza.mentor = { name:'Космонавт', price:0 };
-    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null };
+    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false };
     goToWizardVideo('aVideo','askeza');
   } else {
     state.form.tier = 'free';
     state.form.duration = { label: tr('21 день — бесплатно','21 days — free'), days:21, price:0, free:true };
     state.form.mentor = { name:'Космонавт', price:0 };
-    state.form.boosts = { stake:null, public:false };
+    state.form.boosts = { public:false };
     state.form.proofType = 'video';
     go('habitGoal3P');
   }
@@ -5063,19 +5063,19 @@ function openFullTier(kind){
     state.result.tier = 'full';
     state.result.duration = null;
     state.result.mentor = null;
-    state.result.boosts = { aiAnalysis:false, stake:null, public:false, secondChance:false };
+    state.result.boosts = { aiAnalysis:false, public:false, secondChance:false };
     go('rTariff');
   } else if(kind==='askeza'){
     state.askeza.tier = 'full';
     state.askeza.duration = null;
     state.askeza.mentor = null;
-    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null };
+    state.askeza.boosts = { witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false };
     go('aDuration');
   } else {
     state.form.tier = 'full';
     state.form.duration = null;
     state.form.mentor = null;
-    state.form.boosts = { stake:null, public:false };
+    state.form.boosts = { public:false };
     go('habitBasics');
   }
 }
@@ -5085,11 +5085,11 @@ function tierChoiceBody(freeOnclick, fullOnclick){
     <div class="stack" style="margin-top:14px;">
       <div class="card" style="cursor:pointer;" onclick="${freeOnclick}">
         <div style="font-weight:700;font-size:15px;">${tr('Бесплатно','Free')}</div>
-        <div class="hint" style="margin-top:4px;">${tr('Видео-обещание + наставник Космонавт. Без ставки и без публичного режима.','A video promise + Cosmonaut as mentor. No stake, no public mode.')}</div>
+        <div class="hint" style="margin-top:4px;">${tr('Видео-обещание + наставник Космонавт. Без публичного режима.','A video promise + Cosmonaut as mentor. No public mode.')}</div>
       </div>
       <div class="card" style="cursor:pointer;" onclick="${fullOnclick}">
         <div style="font-weight:700;font-size:15px;">${tr('Полная миссия','Full mission')}</div>
-        <div class="hint" style="margin-top:4px;">${tr('Выбор срока, любой наставник, ставка и публичный режим.','Pick the length, any mentor, a stake, and public mode.')}</div>
+        <div class="hint" style="margin-top:4px;">${tr('Выбор срока, любой наставник, усиления и публичный режим.','Pick the length, any mentor, boosts, and public mode.')}</div>
       </div>
     </div>
   `;
@@ -5110,7 +5110,7 @@ function tierUpsellBody(kind){
     <h2 style="margin-top:16px;">${tr('Заблокировано','Locked')}</h2>
     <div class="toggle-row disabled"><div><div class="t-title">${tr('Другие наставники','Other mentors')}</div></div></div>
     <div class="toggle-row disabled"><div><div class="t-title">${tr('Публичный режим','Public mode')}</div></div></div>
-    <div class="toggle-row disabled"><div><div class="t-title">${tr('Ставка / усиление обещания','Stake / boosted promise')}</div></div></div>
+    <div class="toggle-row disabled"><div><div class="t-title">${tr('Усиления','Boosts')}</div></div></div>
     <button class="btn ghost block" style="margin-top:16px;" onclick="openFullTier('${kind}')">${tr('Открыть всё сейчас','Open everything now')}</button>
     <button class="btn primary block" style="margin-top:10px;" onclick="initiatePayment('${kind}')">${tr('Начать бесплатно','Start for free')}</button>
   `;
@@ -5546,7 +5546,7 @@ function addMissionFromForm(){
   const mission = { title: label(effectiveHabitName()) || tr('Новая миссия','New mission'), type:'Привычка', progress: 6, mentor: state.form.mentor ? state.form.mentor.name : null, totalDays: habitDays, targetDate: habitDays ? addDaysISO(habitDays) : null, meaning: state.form.meaning || '', isPublic: !!state.form.boosts.public, freq: state.form.freq || null, freqDays: state.form.freq==='Несколько раз в неделю' ? [...state.form.freqDays] : [], freqEvent: state.form.freq==='По событию' ? state.form.freqEvent : '' };
   state.missions.unshift(mission);
   state.profile.launchedByType['Привычка'] = (state.profile.launchedByType['Привычка']||0) + 1;
-  const createPromise = dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.form.mentor ? state.form.mentor.name : null, { boosts: boostsForDb(state.form.boosts), paymentId: paidPaymentId() });
   attachWizardPromiseVideo(createPromise, mission, state.form.boosts.public);
   dbUpsertUserStats();
   if (state.form.mentor) recordMentorUnlock(state.form.mentor.name);
@@ -5556,7 +5556,7 @@ function resetForm(){
     habitName:null, habitCustom:'', habitInputMode:'chips', theme:null, themeOther:'', duration:null, customDeadline:'', tier:null,
     freq:null, freqDays:[], freqEvent:'', activityTime:[], whenWhere:'', freeWhen:'', proofType:null,
     psychotype:null, supportStyle:null, toneSupport:40, persistence:60,
-    meaning:'', mentor:null, boosts:{stake:null,public:false,witnesses:false,witnessList:[''],system:false,systemTrigger:'',support:false,alterDates:false,triggerAnalysis:false,secondChance:false}, videoDone:false,
+    meaning:'', mentor:null, boosts:{public:false,witnesses:false,witnessList:[''],system:false,systemTrigger:'',support:false,alterDates:false,triggerAnalysis:false,secondChance:false}, videoDone:false,
     profileExpanded:state.form.profileExpanded, fastTrack:false, ticketId:null, ticketGoal:'', ticketReport:'', missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
@@ -5673,7 +5673,6 @@ function askezaDurationLabel(){
 }
 function setAskezaMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.askeza.mentor={name,price}; render(); }
 function toggleAskezaBoost(key){ state.askeza.boosts[key]=!state.askeza.boosts[key]; render(); }
-function setAskezaSelfStake(v){ state.askeza.boosts.selfStake=v; render(); }
 function setWitness(i,v){ state.askeza.boosts.witnessList[i]=v; }
 function addWitness(){ state.askeza.boosts.witnessList.push(''); render(); }
 function removeWitness(i){ state.askeza.boosts.witnessList.splice(i,1); if(!state.askeza.boosts.witnessList.length) state.askeza.boosts.witnessList=['']; render(); }
@@ -5684,7 +5683,7 @@ function syncA(){
   else if(state.screen==='aDuration') b.disabled = !canContinueADuration();
 }
 function totalAskezaPrice(){
-  if(isFirstMissionFree()) return 0;
+  if(state.freeMissions || isFirstMissionFree()) return 0;
   let sum = 0;
   if(state.askeza.mentor && state.askeza.mentor.price) sum += state.askeza.mentor.price;
   if(state.askeza.boosts.witnesses){
@@ -5696,7 +5695,6 @@ function totalAskezaPrice(){
   if(state.askeza.boosts.alterDates) sum += 300;
   if(state.askeza.boosts.triggerAnalysis) sum += 300;
   if(state.askeza.boosts.secondChance) sum += 300;
-  if(state.askeza.boosts.selfStake) sum += 0; // self-stake is frozen and returned on success, not added to purchase price
   return sum;
 }
 function addAskezaMissionFromForm(){
@@ -5705,7 +5703,7 @@ function addAskezaMissionFromForm(){
   const mission = { title: state.askeza.goal || tr('Новая аскеза','New vow'), type:'Аскеза', progress: 4, mentor: state.askeza.mentor ? state.askeza.mentor.name : null, totalDays: askezaDays, targetDate: askezaTargetDate, meaning: state.askeza.meaning || '', isPublic: false };
   state.missions.unshift(mission);
   state.profile.launchedByType['Аскеза'] = (state.profile.launchedByType['Аскеза']||0) + 1;
-  const createPromise = dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.askeza.mentor ? state.askeza.mentor.name : null, { boosts: boostsForDb(state.askeza.boosts), paymentId: paidPaymentId() });
   attachWizardPromiseVideo(createPromise, mission, false);
   dbUpsertUserStats();
   if (state.askeza.mentor) recordMentorUnlock(state.askeza.mentor.name);
@@ -5731,7 +5729,7 @@ function resetAskezaForm(){
     duration:null, tier:null, customDeadline:'',
     videoDone:false, videoSkipped:false,
     mentor:null,
-    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false, selfStake:null },
+    boosts:{ witnesses:false, witnessList:[''], system:false, support:false, systemTrigger:'', alterDates:false, triggerAnalysis:false, secondChance:false },
     missionCreated:false
   };
   state.videoRecording=false; state.recSeconds=0; state.mentorInfoFor=null;
@@ -5754,7 +5752,6 @@ function setResultSupportStyle(v){ state.result.supportStyle=v; render(); }
 function setResultPride(v){ state.result.pride=v; render(); }
 function setResultPsychotype(v){ state.result.psychotype=v; render(); }
 function setResultMentor(name, price){ if(!MENTORS_ENABLED.includes(name)) return; state.result.mentor={name,price}; render(); }
-function setResultStake(v){ state.result.boosts.stake=v; render(); }
 function toggleResultBoost(key){ state.result.boosts[key]=!state.result.boosts[key]; render(); }
 function setResultWitness(i, v){ state.result.boosts.witnessList[i]=v; }
 function addResultWitness(){ state.result.boosts.witnessList.push(''); render(); }
@@ -5778,7 +5775,7 @@ function resultTariffPrice(){
   return 0;
 }
 function totalResultPrice(){
-  if(isFirstMissionFree()) return 0;
+  if(state.freeMissions || isFirstMissionFree()) return 0;
   let sum = resultTariffPrice();
   if(state.result.mentor && state.result.mentor.price) sum += state.result.mentor.price;
   if(state.result.boosts.aiAnalysis) sum += 199;
@@ -5800,7 +5797,7 @@ function addResultMissionFromForm(){
   const mission = { title: state.result.goal || tr('Новая цель','New goal'), type:'Результат', progress: 4, mentor: state.result.mentor ? state.result.mentor.name : null, totalDays: resultDays, targetDate: state.result.deadline || null, meaning: state.result.meaning || '', isPublic: !!state.result.boosts.public };
   state.missions.unshift(mission);
   state.profile.launchedByType['Результат'] = (state.profile.launchedByType['Результат']||0) + 1;
-  const createPromise = dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null);
+  const createPromise = dbCreateMission(mission, state.result.mentor ? state.result.mentor.name : null, { boosts: boostsForDb(state.result.boosts), paymentId: paidPaymentId() });
   attachWizardPromiseVideo(createPromise, mission, state.result.boosts.public);
   dbUpsertUserStats();
   if (state.result.mentor) recordMentorUnlock(state.result.mentor.name);
@@ -5812,7 +5809,7 @@ function resetResultForm(){
     milestones:[], milestoneDraft:'', milestoneDraftDate:'',
     psychotype:null, supportStyle:null, toneSupport:40, trust:60, pride:null,
     meaning:'', mentor:null, duration:null, tier:null, freeWhen:'', proofType:null,
-    boosts:{ aiAnalysis:false, stake:null, public:false, secondChance:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false },
+    boosts:{ aiAnalysis:false, public:false, secondChance:false, witnesses:false, witnessList:[''], system:false, systemTrigger:'', support:false, alterDates:false },
     videoDone:false,
     missionCreated:false
   };
