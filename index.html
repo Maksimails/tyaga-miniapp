@@ -1006,7 +1006,7 @@ function pollPayment(){
       if (elapsed % 10000 === 0) verifyPaymentOnServer(state.payment.paymentId);
       await paymentStatusOnce();
     } catch(e){ /* keep polling — a transient network hiccup shouldn't abort the wait */ }
-    if (elapsed > 120000 && state.payment && state.payment.status === 'awaiting') {
+    if (elapsed > 900000 && state.payment && state.payment.status === 'awaiting') {
       clearInterval(paymentPollHandle);
       state.payment.status = 'timeout';
       safeRender();
@@ -4323,17 +4323,16 @@ const SCREENS = {
         <button class="btn primary block" style="margin-top:14px;" onclick="retryPayment('${p.kind}')">${tr('Попробовать снова','Try again')}</button>
         <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
     } else if (p.status === 'timeout') {
-      body = `<p class="lead">${tr('Не видим подтверждения оплаты уже 2 минуты.','We haven\'t seen a confirmed payment for 2 minutes.')}</p>
+      body = `<p class="lead">${tr('Оплата пока не поступила.','The payment hasn\'t arrived yet.')}</p>
         <button class="btn primary block" style="margin-top:14px;" onclick="recheckPaymentNow()">${tr('Проверить ещё раз','Check again')}</button>
         <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
     } else if (p.status === 'error') {
       body = `<p class="lead">${tr('Не получилось создать платёж.','Couldn\'t create the payment.')} ${p.error==='age_not_confirmed' ? tr('Нужно подтвердить возраст.','Age needs to be confirmed.') : (p.error==='yookassa_not_configured' ? tr('Оплата ещё не подключена — это тестовая сборка.','Payment isn\'t connected yet — this is a test build.') : '')}</p>
         <button class="btn ghost block" style="margin-top:14px;" onclick="cancelPaymentWait()">${tr('← Назад','← Back')}</button>`;
     } else {
-      body = `<p class="lead">${p.checking ? tr('Проверяем оплату','Checking the payment') : tr('Ждём подтверждения оплаты','Waiting for payment confirmation')}${DOTS}</p>
-        <p class="hint">${tr('Не закрывай приложение — после оплаты мы перейдём дальше сами.','Keep the app open — we\'ll move on by ourselves once you pay.')}</p>
-        <button class="btn ghost block ${p.checking?'busy':''}" style="margin-top:14px;" onclick="recheckPaymentNow()">${p.checking ? tr('Проверяем','Checking')+DOTS : tr('Я оплатил — проверить','I paid — check now')}</button>
-        ${p.confirmationUrl ? `<button class="btn ghost block" style="margin-top:10px;" onclick="openPaymentUrl(state.payment.confirmationUrl)">${tr('Открыть страницу оплаты','Open the payment page')}</button>` : ''}
+      body = `<p class="lead">${tr('Ждём оплату','Waiting for the payment')}${DOTS}</p>
+        <p class="hint">${tr('Как только оплата пройдёт, миссия запустится сама — ничего нажимать не нужно.','As soon as the payment goes through, the mission starts by itself — nothing to tap.')}</p>
+        ${p.confirmationUrl ? `<button class="btn ghost block" style="margin-top:14px;" onclick="openPaymentUrl(state.payment.confirmationUrl)">${tr('Открыть страницу оплаты','Open the payment page')}</button>` : ''}
         <button class="btn ghost block" style="margin-top:10px;" onclick="cancelPaymentWait()">${tr('Отменить','Cancel')}</button>`;
     }
     return screenShell(`
