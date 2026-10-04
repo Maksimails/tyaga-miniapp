@@ -240,7 +240,7 @@
   }
   .chip.active{background:var(--invert-bg);color:var(--invert-text);border-color:var(--invert-bg);font-weight:600;}
 
-  input[type=text], textarea{
+  input[type=text], input[type=email], input[type=tel], textarea{
     width:100%;
     background:var(--surface-2);
     border:1px solid var(--line);
@@ -733,6 +733,8 @@
   .wl-steps{margin:0;padding-left:18px;color:var(--text-dim);font-size:13.5px;line-height:1.6}
   .wl-soon{opacity:.45;pointer-events:none}
   .wl-err{background:#2c1012;color:#ff8a8a;border-radius:12px;padding:10px 12px;font-size:13px}
+  .wl input,.view input[type=email],.view input[type=tel]{width:100%}
+  .wl div.hint,.wa div.hint{color:var(--text-faint);font-size:12.5px;line-height:1.5}
   .seg{display:flex;gap:6px}.seg .btn{flex:1}
   body.desk #app-root{max-width:none;display:grid;grid-template-columns:240px minmax(0,1fr);grid-template-rows:auto 1fr}
   body.desk .tg-bar{grid-column:1;grid-row:1;border-right:1px solid var(--line);padding:22px 22px 14px;font-size:13px}
@@ -6118,25 +6120,137 @@ tyagaWrap('dbSaveOnboarding', () => ['onboarding_done', {}]);
 tyagaWrap('doInitiatePaymentInner', (kind) => ['payment_start', { kind }]);
 
 /* ===== Веб-версия: экран входа, «Ещё», установка, раскладка для компьютера ===== */
+const WL = { step: 'form', email: '', phone: '', code: '', short: '', err: '', busy: false };
+const WL_ERR = {
+  bad_email: ['Проверь адрес почты', 'Check the email address'],
+  bad_phone: ['Проверь номер: с кодом страны, например +7 900 000-00-00', 'Check the number: with country code, e.g. +44 7700 900000'],
+  too_many_codes: ['Слишком много кодов. Попробуй через час.', 'Too many codes. Try again in an hour.'],
+  code_wrong: ['Код не подошёл', 'Wrong code'],
+  code_expired: ['Код устарел. Запроси новый.', 'The code has expired. Request a new one.'],
+  too_many_attempts: ['Слишком много попыток. Подожди 15 минут.', 'Too many attempts. Wait 15 minutes.'],
+  email_not_configured: ['Вход по почте включится совсем скоро. Пока войди через Telegram.', 'Email sign-in is coming very soon. Use Telegram for now.'],
+  email_send_failed: ['Письмо не ушло. Попробуй ещё раз.', 'The email did not go out. Please try again.'],
+  link_expired: ['Код устарел или уже использован', 'The code has expired or was already used'],
+  email_taken: ['Эта почта уже привязана к другому аккаунту', 'This email is already linked to another account'],
+  bad_code: ['Проверь код', 'Check the code'],
+};
+const wlErr = (e) => { const x = WL_ERR[e]; return x ? tr(x[0], x[1]) : tr('Что-то пошло не так. Попробуй ещё раз.', 'Something went wrong. Please try again.'); };
+const escAttr = (v) => String(v || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function wlSignedIn(d){ saveWebSession({ refresh: d.refresh, tg_id: d.tg_id }); location.replace('/'); }
+async function wlSendCode(){
+  WL.err = ''; WL.busy = true; render();
+  try { await webAuthCall('email_start', { email: WL.email, phone: WL.phone }); WL.step = 'code'; WL.code = ''; }
+  catch (e) { WL.err = e.message; }
+  WL.busy = false; render();
+  const c = document.getElementById('wlCode'); if (c) c.focus();
+}
+async function wlVerify(){
+  WL.err = ''; WL.busy = true; render();
+  try { wlSignedIn(await webAuthCall('email_verify', { email: WL.email, code: WL.code, standalone: IS_STANDALONE })); }
+  catch (e) { WL.err = e.message; WL.busy = false; render(); }
+}
+async function wlShortCode(){
+  WL.err = ''; WL.busy = true; render();
+  try { wlSignedIn(await webAuthCall('redeem', { code: WL.short, standalone: IS_STANDALONE })); }
+  catch (e) { WL.err = e.message; WL.busy = false; render(); }
+}
 SCREENS.webLogin = function(){
-  const err = WEB_LOGIN_ERROR ? `<div class="wl-err">${WEB_LOGIN_ERROR === 'link_expired' ? tr('Ссылка для входа устарела или уже использована. Получи новую в приложении.', 'This sign-in link has expired or was already used. Get a new one in the app.') : tr('Вход не удался. Попробуй ещё раз.', 'Sign-in failed. Please try again.')}</div>` : '';
+  const errMsg = WL.err || WEB_LOGIN_ERROR;
+  const err = errMsg ? `<div class="wl-err">${wlErr(errMsg)}</div>` : '';
+  const busy = WL.busy ? ' busy' : '';
+  const form = WL.step === 'code' ? `
+      <div class="hint" style="margin-bottom:10px">${tr('Код отправлен на', 'Code sent to')} <b style="color:#fff">${escAttr(WL.email)}</b>. ${tr('Проверь также «Спам».', 'Check Spam too.')}</div>
+      <input id="wlCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${tr('Код из письма', 'Code from the email')}" value="${escAttr(WL.code)}" oninput="this.value=this.value.replace(/\\D/g,''); WL.code=this.value" onkeydown="if(event.key==='Enter')wlVerify()">
+      <button class="btn primary block${busy}" style="margin-top:10px" onclick="wlVerify()">${tr('Войти', 'Sign in')}${WL.busy ? DOTS : ''}</button>
+      <button class="btn ghost block small" style="margin-top:8px" onclick="WL.step='form';WL.err='';render()">${tr('Изменить почту или телефон', 'Change email or phone')}</button>` : `
+      <input type="email" autocomplete="email" placeholder="${tr('Почта', 'Email')}" value="${escAttr(WL.email)}" oninput="WL.email=this.value.trim()">
+      <input type="tel" autocomplete="tel" placeholder="${tr('Телефон, например +7 900 000-00-00', 'Phone, e.g. +7 900 000-00-00')}" value="${escAttr(WL.phone)}" oninput="WL.phone=this.value" style="margin-top:10px" onkeydown="if(event.key==='Enter')wlSendCode()">
+      <button class="btn primary block${busy}" style="margin-top:10px" onclick="wlSendCode()">${tr('Получить код на почту', 'Get a code by email')}${WL.busy ? DOTS : ''}</button>
+      <div class="hint" style="margin-top:8px;font-size:11.5px">${tr('Почту и телефон храним на сервере в Москве и используем для входа и связи с тобой.', 'We keep your email and phone on a server in Moscow and use them to sign you in and contact you.')}</div>`;
   return `<div class="wl">
     <img class="wl-logo" src="${LOGO_TAIL_URI}" alt="ТЯГА">
     <h1 style="margin:0">${tr('Вход в ТЯГУ', 'Sign in to TYAGA')}</h1>
     ${err}
+    <div class="card"><div style="font-weight:700;margin-bottom:10px">${tr('Телефон и почта', 'Phone and email')}</div>${form}</div>
     <div class="card">
-      <div style="font-weight:700;margin-bottom:8px">${tr('Через Telegram', 'With Telegram')}</div>
-      <ol class="wl-steps">
-        <li>${tr('Открой', 'Open')} <a href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener" style="color:#fff">@TyagaApp_Bot</a> ${tr('и запусти приложение', 'and launch the app')}</li>
-        <li>${tr('Ещё → «Веб-версия ТЯГИ»', 'More → “TYAGA web version”')}</li>
-        <li>${tr('Ссылка откроется в браузере, вход произойдёт сам', 'The link opens in your browser and signs you in')}</li>
-      </ol>
-      <a class="btn primary" style="margin-top:12px;display:block;text-align:center;text-decoration:none" href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener">${tr('Открыть @TyagaApp_Bot', 'Open @TyagaApp_Bot')}</a>
+      <div style="font-weight:700;margin-bottom:6px">${tr('Код из Telegram', 'Code from Telegram')}</div>
+      <div class="hint" style="margin-bottom:10px">${tr('Уже пользуешься ТЯГОЙ в Telegram? Открой @TyagaApp_Bot → Ещё → «Веб-версия ТЯГИ» и введи код здесь.', 'Already use TYAGA in Telegram? Open @TyagaApp_Bot → More → “TYAGA web version” and enter the code here.')}</div>
+      <input type="text" autocapitalize="characters" maxlength="7" placeholder="ABC-123" value="${escAttr(WL.short)}" oninput="WL.short=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wlShortCode()" style="letter-spacing:.2em;text-transform:uppercase">
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn primary${busy}" style="flex:1" onclick="wlShortCode()">${tr('Войти по коду', 'Sign in with code')}</button>
+        <a class="btn ghost" style="flex:1;text-align:center;text-decoration:none" href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener">@TyagaApp_Bot</a>
+      </div>
     </div>
     <div class="card wl-soon">${tr('Яндекс ID · скоро', 'Yandex ID · soon')}</div>
-    <div class="card wl-soon">${tr('Телефон и почта · скоро', 'Phone and email · soon')}</div>
-    <p class="hint" style="font-size:12px">${tr('Твои данные хранятся на сервере в Москве.', 'Your data is stored on a server in Moscow.')}</p>
   </div>`;
+};
+
+/* Mini App: Ещё → «Веб-версия ТЯГИ» */
+const WA = { loaded: false, loading: false, url: '', short: '', err: '', ids: [], step: 'form', email: '', phone: '', code: '', busy: false, linked: false };
+async function waLoad(){
+  if (WA.loading) return;
+  WA.loading = true; WA.err = '';
+  try {
+    const tok = await authToken();
+    const [link, ids] = await Promise.all([webAuthCall('link_create', { bearer: tok }), webAuthCall('identities', { bearer: tok }).catch(() => ({ identities: [] }))]);
+    WA.url = link.url; WA.short = link.short; WA.ids = ids.identities || [];
+  } catch (e) { WA.err = e.message; }
+  WA.loading = false; WA.loaded = true; safeRender();
+}
+function openWebVersion(){ WA.loaded = false; WA.step = 'form'; WA.linked = false; go('webAccess'); waLoad(); }
+function waOpenLink(){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg && tg.openLink) tg.openLink(WA.url, { try_instant_view: false }); else window.open(WA.url, '_blank');
+}
+async function waSendCode(){
+  WA.err = ''; WA.busy = true; render();
+  try { await webAuthCall('link_email_start', { bearer: await authToken(), email: WA.email, phone: WA.phone }); WA.step = 'code'; }
+  catch (e) { WA.err = e.message; }
+  WA.busy = false; render();
+}
+async function waVerify(){
+  WA.err = ''; WA.busy = true; render();
+  try {
+    const tok = await authToken();
+    await webAuthCall('link_email_verify', { bearer: tok, email: WA.email, code: WA.code });
+    const ids = await webAuthCall('identities', { bearer: tok });
+    WA.ids = ids.identities || []; WA.step = 'form'; WA.linked = true;
+  } catch (e) { WA.err = e.message; }
+  WA.busy = false; render();
+}
+SCREENS.webAccess = function(){
+  const email = WA.ids.find((i) => i.kind === 'email' && i.verified);
+  const phone = WA.ids.find((i) => i.kind === 'phone');
+  const busy = WA.busy ? ' busy' : '';
+  const codeBox = !WA.loaded ? `<p class="hint">${tr('Готовим код', 'Preparing your code')}${DOTS}</p>`
+    : (WA.url ? `<div style="font-family:var(--font-mono);font-size:34px;letter-spacing:.18em;text-align:center;margin:6px 0 4px">${escAttr(WA.short)}</div>
+        <div class="hint" style="text-align:center;margin-bottom:12px">${tr('Код и ссылка действуют 10 минут', 'The code and link work for 10 minutes')}</div>
+        <button class="btn primary block" onclick="waOpenLink()">${tr('Открыть в браузере', 'Open in browser')}</button>
+        <button class="btn ghost block small" style="margin-top:8px" onclick="WA.loaded=false;render();waLoad()">${tr('Новый код', 'New code')}</button>`
+      : `<div class="wl-err">${wlErr(WA.err)}</div><button class="btn ghost block small" onclick="WA.loaded=false;render();waLoad()">${tr('Попробовать ещё раз', 'Try again')}</button>`);
+  const linkForm = WA.step === 'code' ? `
+      <div class="hint" style="margin-bottom:8px">${tr('Код отправлен на', 'Code sent to')} <b style="color:#fff">${escAttr(WA.email)}</b></div>
+      <input type="text" inputmode="numeric" maxlength="6" placeholder="${tr('Код из письма', 'Code from the email')}" oninput="this.value=this.value.replace(/\\D/g,''); WA.code=this.value">
+      <button class="btn primary block${busy}" style="margin-top:10px" onclick="waVerify()">${tr('Подтвердить', 'Confirm')}${WA.busy ? DOTS : ''}</button>`
+    : `<input type="email" placeholder="${tr('Почта', 'Email')}" value="${escAttr(WA.email || (email ? email.value : ''))}" oninput="WA.email=this.value.trim()">
+      <input type="tel" placeholder="${tr('Телефон, например +7 900 000-00-00', 'Phone, e.g. +7 900 000-00-00')}" value="${escAttr(WA.phone || (phone ? phone.value : ''))}" oninput="WA.phone=this.value" style="margin-top:10px">
+      <button class="btn block${busy}" style="margin-top:10px" onclick="waSendCode()">${tr('Получить код на почту', 'Get a code by email')}${WA.busy ? DOTS : ''}</button>`;
+  return `<div class="wa">
+    <div class="eyebrow">${tr('Ещё', 'More')}</div>
+    <h1>${tr('Веб-версия ТЯГИ', 'TYAGA web version')}</h1>
+    <p class="lead">${tr('ТЯГА в браузере и на главном экране телефона: app.tyaga.tech. Работает в России без VPN.', 'TYAGA in a browser and on your phone home screen: app.tyaga.tech.')}</p>
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:6px">${tr('Код для входа', 'Sign-in code')}</div>
+      <div class="hint" style="margin-bottom:8px">${tr('Открой app.tyaga.tech или установленное приложение и введи код. Кнопка ниже откроет браузер и войдёт сама.', 'Open app.tyaga.tech or the installed app and enter the code. The button below opens the browser and signs in by itself.')}</div>
+      ${codeBox}
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:6px">${tr('Почта и телефон для входа', 'Email and phone for sign-in')}</div>
+      ${email ? `<div class="hint" style="margin-bottom:10px">${tr('Привязано', 'Linked')}: <b style="color:#fff">${escAttr(email.value)}</b>${phone ? ' · ' + escAttr(phone.value) : ''}${WA.linked ? ' ✓' : ''}</div>`
+              : `<div class="hint" style="margin-bottom:10px">${tr('Привяжи почту, и сможешь входить в веб-версию без Telegram.', 'Link an email to sign in to the web version without Telegram.')}</div>`}
+      ${WA.err && WA.loaded && WA.url ? `<div class="wl-err" style="margin-bottom:10px">${wlErr(WA.err)}</div>` : ''}
+      ${linkForm}
+    </div></div>`;
 };
 function layoutPref(){ try { return localStorage.getItem('tyaga_layout') || 'desktop'; } catch (e) { return 'desktop'; } }
 function applyLayout(){ document.body.classList.toggle('desk', IS_WEB && IS_DESKTOP_DEVICE && layoutPref() !== 'mobile'); }
@@ -6149,17 +6263,6 @@ function installApp(){
   alert(ios ? tr('В Safari нажми «Поделиться» внизу экрана, затем «На экран „Домой“».', 'In Safari tap Share at the bottom, then “Add to Home Screen”.')
             : tr('Открой меню браузера (⋮) и выбери «Установить приложение» или «Добавить на главный экран».', 'Open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.'));
 }
-async function openWebVersion(btn){
-  try {
-    if (btn) btn.classList.add('busy');
-    const tok = await authToken();
-    const d = await webAuthCall('link_create', { bearer: tok });
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && tg.openLink) tg.openLink(d.url, { try_instant_view: false }); else window.open(d.url, '_blank');
-  } catch (e) {
-    alert(tr('Не получилось создать ссылку. Попробуй ещё раз.', 'Could not create the link. Please try again.'));
-  } finally { if (btn) btn.classList.remove('busy'); }
-}
 async function webLogout(){
   if (!confirm(tr('Выйти из веб-версии на этом устройстве?', 'Sign out of the web version on this device?'))) return;
   const ses = webSession();
@@ -6167,9 +6270,9 @@ async function webLogout(){
   saveWebSession(null); location.replace('/');
 }
 function webMoreRows(){
-  if (IS_TG) return `<div class="card" style="cursor:pointer;" onclick="openWebVersion(this)">
+  if (IS_TG) return `<div class="card" style="cursor:pointer;" onclick="openWebVersion()">
       <div style="font-weight:600">${tr('Веб-версия ТЯГИ', 'TYAGA web version')}</div>
-      <div class="hint" style="margin-top:4px">${tr('Открыть в браузере и войти на телефоне или компьютере. Ссылка действует 10 минут.', 'Open in a browser and sign in on a phone or computer. The link works for 10 minutes.')}</div>
+      <div class="hint" style="margin-top:4px">${tr('Код для входа, ссылка в браузер, почта для входа без Telegram', 'Sign-in code, browser link, email sign-in without Telegram')}</div>
     </div>`;
   let h = '';
   if (IS_DESKTOP_DEVICE) h += `<div class="card"><div style="margin-bottom:10px">${tr('Вид на компьютере', 'Layout on computer')}</div><div class="seg">
