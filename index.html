@@ -732,6 +732,8 @@
   .wl-logo{width:62%;max-width:240px;margin:6px 0 4px}
   .wl-steps{margin:0;padding-left:18px;color:var(--text-dim);font-size:13.5px;line-height:1.6}
   .wl-soon{opacity:.45;pointer-events:none}
+  .wl-ya{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#000;font-weight:700}
+  .wl-ya-mark{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#fc3f1d;color:#fff;align-items:center;justify-content:center;font-size:13px;font-weight:800}
   .wl-err{background:#2c1012;color:#ff8a8a;border-radius:12px;padding:10px 12px;font-size:13px}
   .wl input,.view input[type=email],.view input[type=tel]{width:100%}
   .wl div.hint,.wa div.hint{color:var(--text-faint);font-size:12.5px;line-height:1.5}
@@ -826,7 +828,30 @@ async function webAuthCall(action, body){
   return d;
 }
 // Opening https://app.tyaga.tech/#login=<code> signs this browser in, then reloads clean.
+const YANDEX_CLIENT_ID = '02fbb6ad1f1f4d98b1dd1a5671307530';
+const YANDEX_REDIRECT = 'https://app.tyaga.tech/auth/yandex';
+function yandexStart(){
+  const st = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2);
+  try { sessionStorage.setItem('tyaga_ya_state', st); localStorage.setItem('tyaga_ya_state', st); } catch (e) {}
+  location.href = 'https://oauth.yandex.ru/authorize?response_type=code&client_id=' + YANDEX_CLIENT_ID
+    + '&redirect_uri=' + encodeURIComponent(YANDEX_REDIRECT) + '&state=' + encodeURIComponent(st);
+}
 const WEB_LOGIN = (function(){
+  if (IS_WEB && location.pathname === '/auth/yandex') {
+    const q = new URLSearchParams(location.search);
+    const code = q.get('code'), st = q.get('state');
+    let saved = null; try { saved = sessionStorage.getItem('tyaga_ya_state') || localStorage.getItem('tyaga_ya_state'); } catch (e) {}
+    try { history.replaceState(null, '', '/'); } catch (e) {}
+    if (!code) { WEB_LOGIN_ERROR = q.get('error') === 'access_denied' ? 'yandex_denied' : 'yandex_failed'; return Promise.resolve(); }
+    if (saved && st !== saved) { WEB_LOGIN_ERROR = 'yandex_failed'; return Promise.resolve(); }
+    return webAuthCall('yandex_login', { code, standalone: IS_STANDALONE })
+      .then(d => {
+        saveWebSession({ refresh: d.refresh, tg_id: d.tg_id });
+        try { if (d.hint) localStorage.setItem('tyaga_onboard_hint', JSON.stringify(d.hint)); localStorage.removeItem('tyaga_ya_state'); } catch (e) {}
+        location.replace('/'); return new Promise(() => {});
+      })
+      .catch(e => { WEB_LOGIN_ERROR = e.message || 'yandex_failed'; try { safeRender(); } catch (x) {} });
+  }
   const m = IS_WEB && (location.hash || '').match(/login=([a-f0-9]{64})/);
   if (!m) return Promise.resolve();
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
@@ -6133,6 +6158,9 @@ const WL_ERR = {
   link_expired: ['Код устарел или уже использован', 'The code has expired or was already used'],
   email_taken: ['Эта почта уже привязана к другому аккаунту', 'This email is already linked to another account'],
   bad_code: ['Проверь код', 'Check the code'],
+  yandex_failed: ['Вход через Яндекс не удался. Попробуй ещё раз.', 'Yandex sign-in failed. Please try again.'],
+  yandex_denied: ['Ты отменил вход через Яндекс.', 'Yandex sign-in was cancelled.'],
+  yandex_not_configured: ['Вход через Яндекс включится совсем скоро.', 'Yandex sign-in is coming very soon.'],
 };
 const wlErr = (e) => { const x = WL_ERR[e]; return x ? tr(x[0], x[1]) : tr('Что-то пошло не так. Попробуй ещё раз.', 'Something went wrong. Please try again.'); };
 const escAttr = (v) => String(v || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -6181,7 +6209,7 @@ SCREENS.webLogin = function(){
         <a class="btn ghost" style="flex:1;text-align:center;text-decoration:none" href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener">@TyagaApp_Bot</a>
       </div>
     </div>
-    <div class="card wl-soon">${tr('Яндекс ID · скоро', 'Yandex ID · soon')}</div>
+    <button class="btn block wl-ya" onclick="yandexStart()"><span class="wl-ya-mark">Я</span>${tr('Войти с Яндекс ID', 'Sign in with Yandex ID')}</button>
   </div>`;
 };
 
@@ -6267,7 +6295,7 @@ async function webLogout(){
   if (!confirm(tr('Выйти из веб-версии на этом устройстве?', 'Sign out of the web version on this device?'))) return;
   const ses = webSession();
   try { if (ses) await webAuthCall('logout', { refresh: ses.refresh }); } catch (e) {}
-  saveWebSession(null); location.replace('/');
+  saveWebSession(null); try { localStorage.removeItem('tyaga_onboard_hint'); } catch (e) {} location.replace('/');
 }
 function webMoreRows(){
   if (IS_TG) return `<div class="card" style="cursor:pointer;" onclick="openWebVersion()">
@@ -6295,6 +6323,14 @@ if (IS_WEB) {
   render = function(){ _webRender(); const b = document.getElementById('webBack'); if (b) b.classList.toggle('on', !!(state.history && state.history.length)); };
 }
 
+try {
+  const hint = JSON.parse(localStorage.getItem('tyaga_onboard_hint') || 'null');
+  if (hint && state.onboard) {
+    if (hint.name && !state.onboard.name) state.onboard.name = hint.name;
+    if (hint.gender && !state.onboard.gender) state.onboard.gender = hint.gender;
+    if (hint.age && !state.onboard.age) state.onboard.age = String(hint.age);
+  }
+} catch (e) {}
 if (IS_WEB && !TG_ID) { state.screen = 'webLogin'; state.history = []; render(); }
 else { render(); hydrateFromDB(); }
 
