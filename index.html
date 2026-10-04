@@ -4,9 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Тяга</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:ital,wght@0,500;0,700;1,500;1,700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+// Telegram's script is needed only inside Telegram. On app.tyaga.tech in a normal browser it is skipped
+// (telegram.org is blocked in Russia without VPN and would stall the page).
+(function(){
+  var ss=''; try{ ss=sessionStorage.getItem('__telegram__initParams')||''; }catch(e){}
+  var inTg=/tgWebApp(Data|Platform|Version)/.test(location.hash)||/tgWebAppData/.test(ss);
+  if (location.hostname!=='app.tyaga.tech' || inTg) document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\/script>');
+})();
+</script>
+<script src="https://app.tyaga.tech/vendor/supabase.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>');</script>
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ТЯГА">
+<link rel="apple-touch-icon" href="https://app.tyaga.tech/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://app.tyaga.tech/icons/favicon-32.png">
+<link rel="stylesheet" href="https://app.tyaga.tech/vendor/fonts.css">
 <style>
   :root{
     --bg:#000000;
@@ -708,11 +724,28 @@
   .dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
   @keyframes tyDot{0%,80%,100%{opacity:.25}40%{opacity:1}}
   .btn.busy{pointer-events:none;opacity:.7}
+  /* ===== Веб-версия ===== */
+  .web-back{display:none;background:none;border:0;color:#fff;font-size:22px;line-height:1;padding:0 10px 0 0;cursor:pointer;font-family:var(--font-body)}
+  body.web .web-back.on{display:inline-block}
+  .tg-bar .brand-wrap{display:flex;align-items:center}
+  .wl{display:flex;flex-direction:column;gap:14px;padding-top:18px}
+  .wl-logo{width:62%;max-width:240px;margin:6px 0 4px}
+  .wl-steps{margin:0;padding-left:18px;color:var(--text-dim);font-size:13.5px;line-height:1.6}
+  .wl-soon{opacity:.45;pointer-events:none}
+  .wl-err{background:#2c1012;color:#ff8a8a;border-radius:12px;padding:10px 12px;font-size:13px}
+  .seg{display:flex;gap:6px}.seg .btn{flex:1}
+  body.desk #app-root{max-width:none;display:grid;grid-template-columns:240px minmax(0,1fr);grid-template-rows:auto 1fr}
+  body.desk .tg-bar{grid-column:1;grid-row:1;border-right:1px solid var(--line);padding:22px 22px 14px;font-size:13px}
+  body.desk .navbar{grid-column:1;grid-row:2;flex-direction:column;justify-content:flex-start;border-top:0;border-right:1px solid var(--line);padding:6px 12px;gap:2px}
+  body.desk .navbtn{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;padding:12px 14px;font-size:12.5px;border-radius:12px}
+  body.desk .navbtn.active{background:#151515}
+  body.desk .navbtn:hover{color:#fff}
+  body.desk .view{grid-column:2;grid-row:1 / span 2;padding:28px max(28px, calc((100% - 760px) / 2)) 48px}
 </style>
 </head>
 <body>
 <div id="app-root">
-  <div class="tg-bar"><span class="brand">ТЯГА</span></div>
+  <div class="tg-bar"><span class="brand-wrap"><button class="web-back" id="webBack" onclick="back()" aria-label="Назад">‹</button><span class="brand">ТЯГА</span></span></div>
   <div class="view" id="view"></div>
   <div class="navbar" id="navbar"></div>
 </div>
@@ -769,6 +802,52 @@ const USER_NAME_EN = 'Alex';
 // Перед публичным запуском заменить на проверку через Edge Function.
 const SUPABASE_URL = 'https://api.tyaga.tech';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkxMTA4ODM3LCJleHAiOjIxMDY0Njg4Mzd9.FTUma47AuyVsNmWF1uK032omfPYXHNArqO3bgufpcjc';
+// ==== Веб-версия (app.tyaga.tech) ====
+const TYAGA_WEB_VERSION = '1.0';
+const IS_TG = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData);
+const IS_WEB = !IS_TG;
+const IS_STANDALONE = !!((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true);
+const IS_DESKTOP_DEVICE = !!(window.matchMedia && matchMedia('(pointer: fine)').matches && matchMedia('(hover: hover)').matches && Math.min(screen.width, screen.height) >= 700);
+const WEB_KEY = 'tyaga_web_session';
+let WEB_LOGIN_ERROR = null;
+function webSession(){ try { return JSON.parse(localStorage.getItem(WEB_KEY) || 'null'); } catch (e) { return null; } }
+function saveWebSession(v){ try { v ? localStorage.setItem(WEB_KEY, JSON.stringify(v)) : localStorage.removeItem(WEB_KEY); } catch (e) {} }
+async function webAuthCall(action, body){
+  body = body || {};
+  const r = await fetch(SUPABASE_URL + '/functions/v1/web-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + (body.bearer || SUPABASE_ANON_KEY) },
+    body: JSON.stringify(Object.assign({ action }, body, { bearer: undefined })),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+  return d;
+}
+// Opening https://app.tyaga.tech/#login=<code> signs this browser in, then reloads clean.
+const WEB_LOGIN = (function(){
+  const m = IS_WEB && (location.hash || '').match(/login=([a-f0-9]{64})/);
+  if (!m) return Promise.resolve();
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  return webAuthCall('redeem', { code: m[1], standalone: IS_STANDALONE })
+    .then(d => { saveWebSession({ refresh: d.refresh, tg_id: d.tg_id }); location.replace('/'); return new Promise(() => {}); })
+    .catch(e => { WEB_LOGIN_ERROR = e.message || 'error'; try { safeRender(); } catch (x) {} });
+})();
+let WEB_FIRST_OPEN = true;
+function webAuth(force){
+  return WEB_LOGIN.then(() => {
+    const ses = webSession();
+    if (!ses || !ses.refresh) return null;
+    if (!force && TG_AUTH.token && TG_AUTH.exp * 1000 - Date.now() > 3600e3) return TG_AUTH.token;
+    if (TG_AUTH.promise) return TG_AUTH.promise;
+    const open = WEB_FIRST_OPEN; WEB_FIRST_OPEN = false;
+    TG_AUTH.promise = webAuthCall('refresh', { refresh: ses.refresh, open, standalone: IS_STANDALONE, version: TYAGA_WEB_VERSION })
+      .then(d => { TG_AUTH.token = d.token; TG_AUTH.exp = d.exp; return d.token; })
+      .catch(e => { if (/session_expired|bad_session/.test(e.message)) { saveWebSession(null); location.replace('/'); } return TG_AUTH.token; })
+      .finally(() => { TG_AUTH.promise = null; });
+    return TG_AUTH.promise;
+  });
+}
+
 // ==== Вход через Telegram ====
 // Telegram подписывает initData токеном бота. Функция tg-auth на сервере проверяет подпись
 // и выдаёт токен с проверенным Telegram id; база пускает каждого только к его собственным строкам.
@@ -777,7 +856,7 @@ const TRACK_SESSION = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
 function tgAuth(force){
   const tg = window.Telegram && window.Telegram.WebApp;
   const initData = tg && tg.initData;
-  if (!initData) return Promise.resolve(null);
+  if (!initData) return webAuth(force);
   if (!force && TG_AUTH.token && TG_AUTH.exp * 1000 - Date.now() > 3600e3) return Promise.resolve(TG_AUTH.token);
   if (TG_AUTH.promise) return TG_AUTH.promise;
   const first = !TG_AUTH.token;
@@ -802,6 +881,7 @@ try {
 } catch (e) { console.warn('Supabase init failed', e); }
 
 function getTelegramId(){
+  if (IS_WEB) { const ws = webSession(); return ws && ws.tg_id ? Number(ws.tg_id) : 0; }
   try {
     const u = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
     if (u && u.id) return u.id;
@@ -981,6 +1061,7 @@ async function doInitiatePaymentInner(kind, cfg){
         description: 'ТЯГА · ' + cfg.label(),
         reference: ref,
         checkout_key: checkoutKey(kind),
+        return_to: IS_WEB ? 'web' : 'tg',
       }),
     });
     const data = await res.json().catch(()=>null);
@@ -3702,6 +3783,7 @@ const SCREENS = {
         <div class="card" style="cursor:pointer;" onclick="alert(tr('Оплата в этой тестовой версии ещё не подключена.','Payment isn\\'t connected yet in this test build.'))">${tr('Способ оплаты','Payment method')}</div>
         <div class="card" style="cursor:pointer;" onclick="alert(consentTermsText())">${tr('Оферта и политика','Terms and policy')}</div>
         <div class="card" onclick="alert(tr('Форма ушла бы в поддержку.','This form would go straight to support.'))" style="cursor:pointer;">${tr('Поддержка · «Нужна помощь»','Support · “Need help”')}</div>
+        ${webMoreRows()}
         <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
           <span>${tr('Язык приложения','App language')}</span>
           <div style="display:flex;gap:8px;">
@@ -6025,8 +6107,83 @@ tyagaWrap('confirmAge18', () => ['age_confirmed', {}]);
 tyagaWrap('dbSaveOnboarding', () => ['onboarding_done', {}]);
 tyagaWrap('doInitiatePaymentInner', (kind) => ['payment_start', { kind }]);
 
-render();
-hydrateFromDB();
+/* ===== Веб-версия: экран входа, «Ещё», установка, раскладка для компьютера ===== */
+SCREENS.webLogin = function(){
+  const err = WEB_LOGIN_ERROR ? `<div class="wl-err">${WEB_LOGIN_ERROR === 'link_expired' ? tr('Ссылка для входа устарела или уже использована. Получи новую в приложении.', 'This sign-in link has expired or was already used. Get a new one in the app.') : tr('Вход не удался. Попробуй ещё раз.', 'Sign-in failed. Please try again.')}</div>` : '';
+  return `<div class="wl">
+    <img class="wl-logo" src="${LOGO_TAIL_URI}" alt="ТЯГА">
+    <h1 style="margin:0">${tr('Вход в ТЯГУ', 'Sign in to TYAGA')}</h1>
+    ${err}
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:8px">${tr('Через Telegram', 'With Telegram')}</div>
+      <ol class="wl-steps">
+        <li>${tr('Открой', 'Open')} <a href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener" style="color:#fff">@TyagaApp_Bot</a> ${tr('и запусти приложение', 'and launch the app')}</li>
+        <li>${tr('Ещё → «Веб-версия ТЯГИ»', 'More → “TYAGA web version”')}</li>
+        <li>${tr('Ссылка откроется в браузере, вход произойдёт сам', 'The link opens in your browser and signs you in')}</li>
+      </ol>
+      <a class="btn primary" style="margin-top:12px;display:block;text-align:center;text-decoration:none" href="https://t.me/TyagaApp_Bot" target="_blank" rel="noopener">${tr('Открыть @TyagaApp_Bot', 'Open @TyagaApp_Bot')}</a>
+    </div>
+    <div class="card wl-soon">${tr('Яндекс ID · скоро', 'Yandex ID · soon')}</div>
+    <div class="card wl-soon">${tr('Телефон и почта · скоро', 'Phone and email · soon')}</div>
+    <p class="hint" style="font-size:12px">${tr('Твои данные хранятся на сервере в Москве.', 'Your data is stored on a server in Moscow.')}</p>
+  </div>`;
+};
+function layoutPref(){ try { return localStorage.getItem('tyaga_layout') || 'desktop'; } catch (e) { return 'desktop'; } }
+function applyLayout(){ document.body.classList.toggle('desk', IS_WEB && IS_DESKTOP_DEVICE && layoutPref() !== 'mobile'); }
+function setLayout(v){ try { localStorage.setItem('tyaga_layout', v); } catch (e) {} applyLayout(); render(); }
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; });
+function installApp(){
+  if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  alert(ios ? tr('В Safari нажми «Поделиться» внизу экрана, затем «На экран „Домой“».', 'In Safari tap Share at the bottom, then “Add to Home Screen”.')
+            : tr('Открой меню браузера (⋮) и выбери «Установить приложение» или «Добавить на главный экран».', 'Open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.'));
+}
+async function openWebVersion(btn){
+  try {
+    if (btn) btn.classList.add('busy');
+    const tok = await authToken();
+    const d = await webAuthCall('link_create', { bearer: tok });
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.openLink) tg.openLink(d.url, { try_instant_view: false }); else window.open(d.url, '_blank');
+  } catch (e) {
+    alert(tr('Не получилось создать ссылку. Попробуй ещё раз.', 'Could not create the link. Please try again.'));
+  } finally { if (btn) btn.classList.remove('busy'); }
+}
+async function webLogout(){
+  if (!confirm(tr('Выйти из веб-версии на этом устройстве?', 'Sign out of the web version on this device?'))) return;
+  const ses = webSession();
+  try { if (ses) await webAuthCall('logout', { refresh: ses.refresh }); } catch (e) {}
+  saveWebSession(null); location.replace('/');
+}
+function webMoreRows(){
+  if (IS_TG) return `<div class="card" style="cursor:pointer;" onclick="openWebVersion(this)">
+      <div style="font-weight:600">${tr('Веб-версия ТЯГИ', 'TYAGA web version')}</div>
+      <div class="hint" style="margin-top:4px">${tr('Открыть в браузере и войти на телефоне или компьютере. Ссылка действует 10 минут.', 'Open in a browser and sign in on a phone or computer. The link works for 10 minutes.')}</div>
+    </div>`;
+  let h = '';
+  if (IS_DESKTOP_DEVICE) h += `<div class="card"><div style="margin-bottom:10px">${tr('Вид на компьютере', 'Layout on computer')}</div><div class="seg">
+      <button class="btn ${layoutPref() !== 'mobile' ? 'primary' : 'ghost'} small" onclick="setLayout('desktop')">${tr('Полный', 'Full')}</button>
+      <button class="btn ${layoutPref() === 'mobile' ? 'primary' : 'ghost'} small" onclick="setLayout('mobile')">${tr('Мобильный', 'Mobile')}</button></div></div>`;
+  if (!IS_STANDALONE && !IS_DESKTOP_DEVICE) h += `<div class="card" style="cursor:pointer;" onclick="installApp()">${tr('Установить на главный экран', 'Add to home screen')}</div>`;
+  h += `<div class="card" style="cursor:pointer;" onclick="webLogout()">${tr('Выйти из веб-версии', 'Sign out of web version')}</div>`;
+  return h;
+}
+if (IS_WEB) {
+  document.body.classList.add('web');
+  applyLayout();
+  window.addEventListener('resize', applyLayout);
+  window.addEventListener('hashchange', () => { if (/login=[a-f0-9]{64}/.test(location.hash)) location.reload(); });
+  if (location.hostname === 'app.tyaga.tech') {
+    const ml = document.createElement('link'); ml.rel = 'manifest'; ml.href = '/manifest.webmanifest'; document.head.appendChild(ml);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  const _webRender = render;
+  render = function(){ _webRender(); const b = document.getElementById('webBack'); if (b) b.classList.toggle('on', !!(state.history && state.history.length)); };
+}
+
+if (IS_WEB && !TG_ID) { state.screen = 'webLogin'; state.history = []; render(); }
+else { render(); hydrateFromDB(); }
 
 
 /* ===== Telegram Mini App integration ===== */
