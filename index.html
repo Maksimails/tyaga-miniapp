@@ -1317,6 +1317,11 @@ async function hydrateFromDB(){
       // then the mentor exists in the database but has never actually spoken
       // to them, so the app keeps nudging them to go activate the chat.
       state.profile.mentorActivated = !!userRow.cosmonaut_greeted;
+      if (userRow.onboarded) {
+        markOnboarded();
+        if (userRow.first_name && !state.profile.name) state.profile.name = userRow.first_name;
+        if (['onboardLang', 'onboardConsent', 'onboardName'].includes(state.screen)) { state.history = []; go('home', { replace: true }); }
+      }
       if (userRow.age_confirmed_18) state.age18Confirmed = true;
       // Local storage wins if the viewer already picked a language on this device;
       // otherwise fall back to what's saved for them in the DB (defaults to 'ru').
@@ -2594,7 +2599,7 @@ function driveTotal(p){ return Object.values(p.launchedByType).reduce((a,b)=>a+b
 // level 8 the ladder keeps extending on a fixed growth rule (×1.3 per level,
 // rounded to the nearest 10) rather than hard-capping — a placeholder curve
 // until Maksim gives real numbers for levels 9+.
-const REPUTATION_LEVEL_THRESHOLDS = [0,33,88,222,333,555,888,1212];
+const REPUTATION_LEVEL_THRESHOLDS = [0,33,88,222,333,555,888,1222,1999,3333,5555,8888,13331,19991,26262];
 function reputationThresholdFor(level){
   if (level <= 1) return 0;
   if (level <= REPUTATION_LEVEL_THRESHOLDS.length) return REPUTATION_LEVEL_THRESHOLDS[level-1];
@@ -2798,7 +2803,7 @@ const SCREENS = {
 
   onboardName(){
     const o = state.onboard;
-    const canContinue = o.name && o.name.trim().length>0 && o.gender;
+    const canContinue = o.name && o.name.trim().length>0 && o.gender && onboardAgeOk(o.age);
     return `
       <div style="display:flex;flex-direction:column;height:100%;justify-content:center;gap:22px;">
         <div>
@@ -2806,7 +2811,8 @@ const SCREENS = {
           <p class="lead">${tr('Так наставники и приложение будут говорить с тобой правильно — по имени и без ошибок в роде.','This way mentors and the app will address you correctly — by name, with the right pronouns.')}</p>
         </div>
         <input type="text" id="onboardNameInput" placeholder="${tr('Твоё имя','Your name')}" value="${o.name}" oninput="state.onboard.name=this.value; syncOnboardName()" />
-        <input type="number" min="1" max="120" inputmode="numeric" id="onboardAgeInput" placeholder="${tr('Возраст (необязательно)','Age (optional)')}" value="${o.age||''}" oninput="state.onboard.age=this.value" />
+        <input type="text" inputmode="numeric" maxlength="3" id="onboardAgeInput" placeholder="${tr('Возраст','Age')}" value="${o.age||''}" oninput="this.value=this.value.replace(/\D/g,''); state.onboard.age=this.value; syncOnboardName()" />
+        <div id="onboardAgeHint" class="hint" style="display:none;margin-top:-14px;">${tr('ТЯГА доступна с 14 лет.','TYAGA is available from age 14.')}</div>
         <div>
           <div class="hint" style="margin-bottom:8px;">${tr('Пол','Gender')}</div>
           <div class="chips-row">
@@ -4794,9 +4800,13 @@ function pickRandomMentor(target){
 }
 function toggleOnboardCheck(field){ state.onboard[field] = !state.onboard[field]; render(); }
 function setOnboardGender(g){ state.onboard.gender = g; render(); }
+function onboardAgeOk(v){ const n = parseInt(String(v || '').replace(/\D/g, ''), 10); return n >= 14 && n <= 100; }
 function syncOnboardName(){
   const b = document.getElementById('btnOnboardName');
-  if(b) b.disabled = !(state.onboard.name && state.onboard.name.trim().length>0 && state.onboard.gender);
+  const o = state.onboard;
+  if(b) b.disabled = !(o.name && o.name.trim().length>0 && o.gender && onboardAgeOk(o.age));
+  const h = document.getElementById('onboardAgeHint');
+  if (h) { const n = parseInt(String(o.age || '').replace(/\D/g, ''), 10); h.style.display = (n && n < 14) ? 'block' : 'none'; }
 }
 function syncOnboardAge(){
   state.onboard.age = state.onboard.age; // value already bound via oninput; kept for parity with syncOnboardName pattern
@@ -4808,7 +4818,7 @@ function setOnboardLang(lang){
 }
 function finishOnboarding(lang){
   const o = state.onboard;
-  if(!(o.name && o.name.trim().length>0 && o.gender)) return;
+  if(!(o.name && o.name.trim().length>0 && o.gender && onboardAgeOk(o.age))) return;
   if (lang) { state.lang = lang; setStoredLang(lang); }
   markOnboarded();
   state.profile.name = o.name.trim();
