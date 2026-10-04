@@ -769,10 +769,35 @@ const USER_NAME_EN = 'Alex';
 // Перед публичным запуском заменить на проверку через Edge Function.
 const SUPABASE_URL = 'https://api.tyaga.tech';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkxMTA4ODM3LCJleHAiOjIxMDY0Njg4Mzd9.FTUma47AuyVsNmWF1uK032omfPYXHNArqO3bgufpcjc';
+// ==== Вход через Telegram ====
+// Telegram подписывает initData токеном бота. Функция tg-auth на сервере проверяет подпись
+// и выдаёт токен с проверенным Telegram id; база пускает каждого только к его собственным строкам.
+const TG_AUTH = { token: null, exp: 0, promise: null };
+const TRACK_SESSION = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+function tgAuth(force){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const initData = tg && tg.initData;
+  if (!initData) return Promise.resolve(null);
+  if (!force && TG_AUTH.token && TG_AUTH.exp * 1000 - Date.now() > 3600e3) return Promise.resolve(TG_AUTH.token);
+  if (TG_AUTH.promise) return TG_AUTH.promise;
+  const first = !TG_AUTH.token;
+  TG_AUTH.promise = fetch(SUPABASE_URL + '/functions/v1/tg-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+    body: JSON.stringify({ initData, platform: tg.platform || '', version: tg.version || '', session: TRACK_SESSION, event: first }),
+  }).then(r => r.ok ? r.json() : null)
+    .then(d => { if (d && d.token) { TG_AUTH.token = d.token; TG_AUTH.exp = d.exp; } return TG_AUTH.token; })
+    .catch(() => TG_AUTH.token)
+    .finally(() => { TG_AUTH.promise = null; });
+  return TG_AUTH.promise;
+}
+async function authToken(){ return (await tgAuth()) || SUPABASE_ANON_KEY; }
+tgAuth();
+
 let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { accessToken: authToken });
   }
 } catch (e) { console.warn('Supabase init failed', e); }
 
@@ -948,7 +973,7 @@ async function doInitiatePaymentInner(kind, cfg){
   try {
     const res = await fetch(PAYMENT_FUNCTIONS_BASE + 'create-payment', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+(await authToken()), 'apikey':SUPABASE_ANON_KEY },
       body: JSON.stringify({
         user_id: TG_ID,
         purpose: 'tariff',
@@ -5950,6 +5975,56 @@ function safeRender(){
     if (u && u.first_name) state.profile.name = u.first_name;
   } catch(e){}
 })();
+/* ===== Активность (для админки): экраны и действия, пачками раз в 5 секунд ===== */
+const TRACK_Q = [];
+let trackTimer = null;
+function track(type, props, screen){
+  try {
+    if (TRACK_Q.length >= 200) TRACK_Q.shift();
+    TRACK_Q.push({ type, screen: screen || (state && state.screen) || null, props: props || {}, at: new Date().toISOString(), session: TRACK_SESSION });
+    if (TRACK_Q.length >= 20) flushTrack(); else if (!trackTimer) trackTimer = setTimeout(flushTrack, 5000);
+  } catch (e) {}
+}
+function flushTrack(keepalive){
+  clearTimeout(trackTimer); trackTimer = null;
+  if (!TRACK_Q.length) return;
+  if (!TG_AUTH.token) { trackTimer = setTimeout(flushTrack, 5000); return; }
+  const batch = TRACK_Q.splice(0, 100);
+  try {
+    fetch(SUPABASE_URL + '/rest/v1/rpc/track_events', {
+      method: 'POST', keepalive: !!keepalive,
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + TG_AUTH.token },
+      body: JSON.stringify({ p_events: batch }),
+    }).catch(() => {});
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { track('app_hide'); flushTrack(true); }
+  else { track('app_show'); tgAuth(); }
+});
+function tyagaWrap(name, mk){
+  try {
+    const f = window[name];
+    if (typeof f !== 'function') return;
+    window[name] = function(){
+      try { const ev = mk.apply(null, arguments); if (ev) track(ev[0], ev[1] || {}); } catch (e) {}
+      return f.apply(this, arguments);
+    };
+  } catch (e) {}
+}
+tyagaWrap('go', (screen) => ['screen', { to: String(screen || '') }]);
+tyagaWrap('dbCreateMission', (m, mentor) => ['mission_created', { type: m && m.type, title: m && m.title, mentor: mentor || null }]);
+tyagaWrap('dbLogProgress', (m) => ['checkin', { type: m && m.type, title: m && m.title }]);
+tyagaWrap('submitMerchOrder', () => ['merch_order', {}]);
+tyagaWrap('uploadIlluminatorProof', () => ['post_created', { kind: 'proof' }]);
+tyagaWrap('uploadIlluminatorVideo', () => ['post_created', { kind: 'video' }]);
+tyagaWrap('attachWizardPromiseVideo', () => ['post_created', { kind: 'promise' }]);
+tyagaWrap('dbToggleSupport', (postId, on) => ['support', { on: !!on }]);
+tyagaWrap('dbSaveLang', (lang) => ['language', { lang }]);
+tyagaWrap('confirmAge18', () => ['age_confirmed', {}]);
+tyagaWrap('dbSaveOnboarding', () => ['onboarding_done', {}]);
+tyagaWrap('doInitiatePaymentInner', (kind) => ['payment_start', { kind }]);
+
 render();
 hydrateFromDB();
 
