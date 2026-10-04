@@ -2,6 +2,22 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<script>
+(function(){
+  setTimeout(function(){
+    if (window.__tyagaBooted) return;
+    var en = !/^ru/i.test(navigator.language || 'ru');
+    var d = document.createElement('div');
+    d.id = 'tyagaNetHelp';
+    d.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#050505;color:#f2f2f2;font:15px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box');
+    d.innerHTML = '<div style="max-width:420px"><div style="font-weight:900;font-style:italic;font-size:30px;letter-spacing:.5px;margin-bottom:14px">ТЯГА</div>'
+      + (en ? '<p style="margin:0 0 12px;font-size:18px;font-weight:700">Loading is taking too long</p><p style="margin:0 0 10px;color:#a9a9b0">This usually happens with a VPN on: Russian servers slow down traffic coming through VPN servers.</p><p style="margin:0 0 18px;color:#a9a9b0">Turn the VPN off for a minute, or enable “Russian sites directly” (split tunnelling / bypass RU) in your VPN app, then reload.</p>'
+            : '<p style="margin:0 0 12px;font-size:18px;font-weight:700">Загрузка идёт слишком долго</p><p style="margin:0 0 10px;color:#a9a9b0">Так бывает с включённым VPN: российские серверы замедляют трафик, который идёт через VPN-серверы.</p><p style="margin:0 0 18px;color:#a9a9b0">Выключи VPN на минуту или включи в приложении VPN режим «Российские сайты напрямую» (раздельное туннелирование, обход RU), затем обнови страницу.</p>')
+      + '<button onclick="location.reload()" style="width:100%;padding:14px;border:0;border-radius:14px;background:#fff;color:#000;font-weight:700;font-size:15px">' + (en ? 'Reload' : 'Обновить') + '</button></div>';
+    (document.body || document.documentElement).appendChild(d);
+  }, 9000);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Тяга</title>
 <script>
@@ -738,6 +754,10 @@
   .wl input,.view input[type=email],.view input[type=tel]{width:100%}
   .wl div.hint,.wa div.hint{color:var(--text-faint);font-size:12.5px;line-height:1.5}
   .seg{display:flex;gap:6px}.seg .btn{flex:1}
+  body.web, body.web #app-root{height:100vh;height:100dvh}
+  body.web.standalone .tg-bar{padding-top:calc(env(safe-area-inset-top, 0px) + 10px)}
+  body.web.standalone .navbar{padding-bottom:max(calc(env(safe-area-inset-bottom, 0px) - 16px), 4px)}
+  body.web.standalone .navbtn{padding:9px 0 6px}
   body.desk #app-root{max-width:none;display:grid;grid-template-columns:240px minmax(0,1fr);grid-template-rows:auto 1fr}
   body.desk .tg-bar{grid-column:1;grid-row:1;border-right:1px solid var(--line);padding:22px 22px 14px;font-size:13px}
   body.desk .navbar{grid-column:1;grid-row:2;flex-direction:column;justify-content:flex-start;border-top:0;border-right:1px solid var(--line);padding:6px 12px;gap:2px}
@@ -6312,6 +6332,7 @@ function webMoreRows(){
 }
 if (IS_WEB) {
   document.body.classList.add('web');
+  if (IS_STANDALONE) document.body.classList.add('standalone');
   applyLayout();
   window.addEventListener('resize', applyLayout);
   window.addEventListener('hashchange', () => { if (/login=[a-f0-9]{64}/.test(location.hash)) location.reload(); });
@@ -6333,6 +6354,7 @@ try {
 } catch (e) {}
 if (IS_WEB && !TG_ID) { state.screen = 'webLogin'; state.history = []; render(); }
 else { render(); hydrateFromDB(); }
+window.__tyagaBooted = true; try { var _nh = document.getElementById('tyagaNetHelp'); if (_nh) _nh.remove(); } catch (e) {}
 
 
 /* ===== Telegram Mini App integration ===== */
