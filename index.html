@@ -2011,6 +2011,7 @@ async function hydrateFromDBOnce(){
       state.profile.checkin.freezes = userRow.streak_freezes || 0;
       state.profile.checkin.brokenStreak = userRow.checkin_broken_streak || null;
       state.profile.checkin.brokenOn = userRow.checkin_broken_on || null;
+      state.profile.checkin.repairCost = (userRow.checkin_repairs || 0) > 0 ? 1000 : 300;
       if (userRow.checkin_history && userRow.checkin_history.length) state.profile.checkin.history = userRow.checkin_history;
       if (userRow.badges && userRow.badges.length) state.profile.badges = userRow.badges;
       if (userRow.vouchers && Object.keys(userRow.vouchers).length) state.profile.vouchers = userRow.vouchers;
@@ -4863,8 +4864,8 @@ const SCREENS = {
         : tr('Заморозка прикрывает один пропущенный день. +1 за каждые 7 дней подряд, максимум 2.','A freeze covers one missed day. +1 for every 7 days in a row, up to 2.')}</p>
       ${(c.brokenStreak && c.brokenOn && c.brokenOn >= addDaysISO(-1)) ? `<div class="road-reveal" style="margin-bottom:16px">
         <div class="rr-label">${tr('Серия прервалась','Your streak broke')}</div>
-        <div class="rr-found">${tr(`Было ${c.brokenStreak} дн. подряд. Вернуть серию можно в течение 48 часов.`, `You had ${c.brokenStreak} days in a row. You can restore it within 48 hours.`)}</div>
-        <button class="prz-btn" style="margin-top:14px;width:100%;height:46px;font-size:15px" ${state.repairBusy?'disabled':''} onclick="doRepairCheckin()">${state.repairBusy ? '…' : tr('Вернуть серию за 300 Л.С.','Restore for 300 Flight Hours')}</button>
+        <div class="rr-found">${tr(`Было ${c.brokenStreak} дн. подряд. Вернуть серию можно в течение 48 часов.`, `You had ${c.brokenStreak} days in a row. You can restore it within 48 hours.`)}${(c.repairCost||300) > 300 ? `<br>${tr('Повторный ремонт серии — 1000 Л.С.','A repeat repair costs 1000 Flight Hours')}` : ''}</div>
+        <button class="prz-btn" style="margin-top:14px;width:100%;height:46px;font-size:15px" ${state.repairBusy?'disabled':''} onclick="doRepairCheckin()">${state.repairBusy ? '…' : tr(`Вернуть серию за ${c.repairCost||300} Л.С.`,`Restore for ${c.repairCost||300} Flight Hours`)}</button>
       </div>` : ''}
 
       ${(() => { const pz = (state.prizes||[]).find(x => x.id === state.lastCheckinPrizeId) || (alreadyToday ? (state.prizes||[]).find(x => x.source_ref === 'checkin:' + today) : null);
@@ -7242,6 +7243,7 @@ async function claimCheckin(){
     const prevStreak = c.streak;
     c.streak = data.streak; c.longest = data.longest; c.lastDate = todayISO();
     if (typeof data.freezes === 'number') c.freezes = data.freezes;
+    if (typeof data.repair_cost === 'number') c.repairCost = data.repair_cost;
     if (data.freeze_used) setTimeout(() => v2Toast(tr('❄ Заморозка спасла серию — пропущенный день не в счёт','❄ A freeze saved your streak — the missed day is covered')), 900);
     if (data.freeze_earned) setTimeout(() => v2Toast(tr('❄ +1 заморозка за 7 дней подряд','❄ +1 freeze for 7 days in a row')), data.freeze_used ? 3200 : 900);
     if (data.comeback && data.comeback.id) {
@@ -7265,8 +7267,9 @@ async function doRepairCheckin(){
     if (data.ok) {
       c.streak = data.streak; c.longest = data.longest; c.brokenStreak = null; c.brokenOn = null;
       if (typeof data.ls_total === 'number') state.profile.ls.total = data.ls_total;
+      if (typeof data.next_cost === 'number') c.repairCost = data.next_cost;
       v2Toast(tr(`Серия возвращена: ${data.streak} дн.`, `Streak restored: ${data.streak} days`));
-    } else if (data.error === 'not_enough_ls') v2Toast(tr('Не хватает Л.С. — нужно 300','Not enough Flight Hours — 300 needed'));
+    } else if (data.error === 'not_enough_ls') v2Toast(tr(`Не хватает Л.С. — нужно ${data.need || c.repairCost || 300}`,`Not enough Flight Hours — ${data.need || c.repairCost || 300} needed`));
     else { c.brokenStreak = null; v2Toast(tr('Время на возврат серии вышло','The time to restore the streak has passed')); }
   } catch(e){ v2Toast(tr('Связь барахлит — попробуй ещё раз','Connection hiccup — try again')); }
   state.repairBusy = false; render();
