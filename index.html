@@ -1277,6 +1277,16 @@
   .ms-info .lab{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8c8c8c}
   .ms-info .txt{margin-top:6px;font-size:15px;line-height:1.5;color:#e6e6e6}
   .ms-lock{margin-top:10px;text-align:center;font-size:12px;line-height:1.45;color:#8c8c8c}
+
+/* hydration state: dim main screens instead of showing zeros while the user's data loads */
+body.tg-hydrating[data-screen="tickets"] #view, body.tg-hydrating[data-screen="home"] #view, body.tg-hydrating[data-screen="profile"] #view,
+body.tg-hydrating[data-screen="more"] #view, body.tg-hydrating[data-screen="checkinRoad"] #view { opacity:.18; pointer-events:none; transition:opacity .2s; }
+#hydrateBar { position:fixed; left:50%; top:calc(env(safe-area-inset-top, 0px) + 14px); transform:translateX(-50%); z-index:9999; display:flex; align-items:center; gap:10px;
+  background:#fff; color:#000; font:600 14px/1.2 Montserrat, system-ui, sans-serif; padding:10px 16px; border-radius:999px; box-shadow:0 6px 24px rgba(0,0,0,.45); max-width:calc(100vw - 32px); }
+#hydrateBar i { width:14px; height:14px; border-radius:50%; border:2px solid #000; border-right-color:transparent; animation:hbspin .8s linear infinite; flex:none; }
+#hydrateBar.hb-failed { border-radius:18px; }
+#hydrateBar button { background:#FF5A1F; color:#000; border:0; border-radius:999px; padding:8px 14px; font:700 13px/1 Montserrat, system-ui, sans-serif; flex:none; }
+@keyframes hbspin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -1937,18 +1947,21 @@ async function dbSaveOnboarding(name, gender, age){
   } catch (e) { console.warn('dbSaveOnboarding failed', e); }
 }
 
-async function hydrateFromDB(){
+async function hydrateFromDBOnce(){
   if (!sb) return;
   try {
     const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || {};
-    let { data: userRow } = await sb.from('users').select('*').eq('telegram_id', TG_ID).maybeSingle();
+    let { data: userRow, error: userErr } = await sb.from('users').select('*').eq('telegram_id', TG_ID).maybeSingle();
+    // A failed request is NOT a new user: never zero the profile on a network error (it used to, and could then save the zeros).
+    if (userErr) throw userErr;
     if (!userRow) {
       dbUserIsNew = true;
-      const { data: inserted } = await sb.from('users').insert({
+      const { data: inserted, error: insErr } = await sb.from('users').insert({
         telegram_id: TG_ID,
         username: tgUser.username || null,
         first_name: tgUser.first_name || null,
       }).select('*').maybeSingle();
+      if (insErr) { dbUserIsNew = false; throw insErr; }
       userRow = inserted;
       // Новый реальный пользователь — обнуляем демо-цифры вместо примера "Денис Соколов".
       state.profile.name = tgUser.first_name || state.profile.name;
@@ -2021,7 +2034,8 @@ async function hydrateFromDB(){
       if (state.paidTester) state.freeMissions = false;
     } catch (e) { state.paidTester = false; }
     if (!dbUserIsNew) {
-      const { data: activeMissions } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','active').order('created_at', { ascending:false });
+      const { data: activeMissions, error: amErr } = await sb.from('missions').select('*').eq('user_id', TG_ID).eq('status','active').order('created_at', { ascending:false });
+      if (amErr) throw amErr;
       if (activeMissions) {
         state.missions = activeMissions.map(m => ({ title:m.title, type:m.type, progress:m.progress, dbId:m.id, no:m.mission_no||null, startDate:String(m.started_at||m.created_at||'').slice(0,10)||null, mentor:m.mentor||null, reportCount:m.report_count||0, totalDays:m.target_days||null, lastReportDate:m.last_report_date||null, isPublic:!!m.public, boosts:m.boosts||{}, boostState:m.boost_state||{}, targetDate:m.target_date||null, meaning:m.meaning||'', lsBonusAwarded:!!m.ls_bonus_awarded, freq:m.promise_freq||null, freqDays:m.promise_freq_days||[], freqEvent:m.promise_freq_event||'', ticketUrl:m.ticket_image_url||null, promiseVideo:m.promise_video_url||null, involvement:m.involvement||'normal', reportPrompts:m.report_prompts||null }));
       }
@@ -2055,8 +2069,40 @@ async function hydrateFromDB(){
     sendAttribution();
     loadPrizes();
     safeRender();
-  } catch (e) { console.warn('hydrateFromDB failed — работаем в локальном режиме', e); }
+  } catch (e) { console.warn('hydrateFromDB attempt failed', e); throw e; }
 }
+// Load the user's data with retries. Until it succeeds, dbHydrated stays false (so nothing is written back)
+// and the main screens are dimmed with a «Загружаю твои данные…» pill instead of showing zeros.
+let hydrateTries = 0, hydrating = false;
+async function hydrateFromDB(){
+  if (!sb || hydrating) return;
+  hydrating = true; setHydrateUi('loading');
+  try {
+    for (;;) {
+      try { await hydrateFromDBOnce(); setHydrateUi(null); return; }
+      catch (e) {
+        hydrateTries++;
+        if (hydrateTries >= 4) { setHydrateUi('failed'); return; }
+        await new Promise(r => setTimeout(r, [1000, 2500, 5000][hydrateTries - 1] || 5000));
+      }
+    }
+  } finally { hydrating = false; }
+}
+function retryHydrate(){ if (dbHydrated || hydrating) return; hydrateTries = 0; hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
+function setHydrateUi(mode){
+  try {
+    document.body.classList.toggle('tg-hydrating', !!mode);
+    let el = document.getElementById('hydrateBar');
+    if (!mode) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'hydrateBar'; document.body.appendChild(el); }
+    el.className = mode === 'failed' ? 'hb-failed' : '';
+    el.innerHTML = mode === 'failed'
+      ? `<span>${tr('Нет связи с сервером. Проверь интернет или VPN.','No connection to the server. Check your internet or VPN.')}</span><button onclick="retryHydrate()">${tr('Повторить','Retry')}</button>`
+      : `<i></i><span>${tr('Загружаю твои данные…','Loading your data…')}</span>`;
+  } catch (e) {}
+}
+window.addEventListener('online', retryHydrate);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) retryHydrate(); });
 
 async function dbUpsertUserStats(){
   if (!sb || !dbHydrated) return;
