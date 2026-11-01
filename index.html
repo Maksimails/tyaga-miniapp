@@ -616,7 +616,7 @@
      Catmull-Rom curve — see smoothPathD()). Rewards are never spelled out on
      the map itself (kept mysterious per 2026-09-28 request); only which of 3
      waypoint kinds a stop is. */
-  .road-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border:1px solid var(--line);border-radius:16px;padding:14px 8px;margin-bottom:18px;}
+  .road-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;border:1px solid var(--line);border-radius:16px;padding:14px 8px;margin-bottom:18px;}
   .road-stats .cell{text-align:center;}
   .road-stats .val{font-family:var(--font-mono);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
   .road-stats .lbl{font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
@@ -1555,6 +1555,24 @@ const PAYMENT_KIND_CONFIG = {
 const BOOSTS_SOON = [];  // all boosts are built; free for now
 // MP4 (H.264) first: it plays everywhere, iPhone included; WebM only where the browser cannot record MP4.
 const VIDEO_MIME_PREF = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+// Photos are resized on the phone before upload: longest side ≤ maxSide px, JPEG ~82% (a 5 MB photo becomes ~300 KB).
+async function compressImage(blob, maxSide = 1600, quality = 0.82){
+  try {
+    if (!blob || !/^image\//.test(blob.type || 'image/')) return blob;
+    let w, h, src;
+    if (window.createImageBitmap) { src = await createImageBitmap(blob); w = src.width; h = src.height; }
+    else {
+      src = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
+      w = src.naturalWidth; h = src.naturalHeight;
+    }
+    const k = Math.min(1, maxSide / Math.max(w, h));
+    if (k === 1 && blob.size < 600 * 1024 && /jpe?g/.test(blob.type || '')) return blob;
+    const cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+    cv.getContext('2d').drawImage(src, 0, 0, cv.width, cv.height);
+    const out = await new Promise(res => cv.toBlob(res, 'image/jpeg', quality));
+    return (out && out.size < blob.size) ? out : blob;
+  } catch (e) { return blob; }
+}
 const videoExt = (blob) => (blob && /mp4/i.test(blob.type || '')) ? 'mp4' : 'webm';
 function boostsSoonOff(b){ if (b) BOOSTS_SOON.forEach(k=>{ b[k] = false; }); return b; }
 function boostsForDb(b){
@@ -1990,6 +2008,9 @@ async function hydrateFromDBOnce(){
       state.profile.checkin.streak = userRow.checkin_streak || 0;
       state.profile.checkin.longest = userRow.checkin_longest || 0;
       state.profile.checkin.lastDate = userRow.checkin_last_date || null;
+      state.profile.checkin.freezes = userRow.streak_freezes || 0;
+      state.profile.checkin.brokenStreak = userRow.checkin_broken_streak || null;
+      state.profile.checkin.brokenOn = userRow.checkin_broken_on || null;
       if (userRow.checkin_history && userRow.checkin_history.length) state.profile.checkin.history = userRow.checkin_history;
       if (userRow.badges && userRow.badges.length) state.profile.badges = userRow.badges;
       if (userRow.vouchers && Object.keys(userRow.vouchers).length) state.profile.vouchers = userRow.vouchers;
@@ -2218,7 +2239,8 @@ async function dbToggleSupport(postId, nowSupported){
 // (state.missions[i].isPublic, mirrored from missions.public in the DB) —
 // resolve it via missionPublicFlag(missionId) before calling this.
 async function uploadIlluminatorProof(opts){
-  const { kind, blob, caption, missionType, missionTitle, missionId, isPromise, reportDay, reportTotalDays, isPublic } = opts;
+  const { kind, caption, missionType, missionTitle, missionId, isPromise, reportDay, reportTotalDays, isPublic } = opts;
+  let blob = opts.blob;
   if (!sb) return null;
   try {
     const base = {
@@ -2233,6 +2255,7 @@ async function uploadIlluminatorProof(opts){
     }
     const isPhoto = kind === 'photo';
     const bucket = isPhoto ? 'illuminator-photos' : 'illuminator-videos';
+    if (isPhoto) blob = await compressImage(blob);
     const ext = isPhoto ? 'jpg' : videoExt(blob);
     const fileName = `${TG_ID}_${Date.now()}.${ext}`;
     const { error: upErr } = await sb.storage.from(bucket).upload(fileName, blob, { contentType: (blob.type || (isPhoto?'image/jpeg':'video/webm')).split(';')[0] });
@@ -4804,7 +4827,8 @@ const SCREENS = {
     const today = todayISO();
     const alreadyToday = c.lastDate === today;
     const yesterday = addDaysISO(-1);
-    const continuing = c.lastDate === yesterday || c.lastDate === today;
+    const freezeCovers = !alreadyToday && c.lastDate === addDaysISO(-2) && (c.freezes||0) > 0 && c.streak > 0;
+    const continuing = c.lastDate === yesterday || c.lastDate === today || freezeCovers;
     // The day we're currently ON (already claimed today) or ABOUT TO claim.
     const activeAbsoluteDay = alreadyToday ? c.streak : (continuing ? c.streak+1 : 1);
     const cycleDay = checkinCycleDay(activeAbsoluteDay);
@@ -4832,7 +4856,16 @@ const SCREENS = {
         <div class="cell"><div class="val">${c.streak}</div><div class="lbl">${tr('Серия','Streak')}</div></div>
         <div class="cell"><div class="val">${c.longest}</div><div class="lbl">${tr('Рекорд','Best')}</div></div>
         <div class="cell"><div class="val">${lap}</div><div class="lbl">${tr('Круг','Lap')}</div></div>
+        <div class="cell"><div class="val">❄ ${c.freezes||0}</div><div class="lbl">${tr('Заморозки','Freezes')}</div></div>
       </div>
+      <p class="hint" style="margin:-8px 0 16px;">${freezeCovers
+        ? tr('Вчера пропуск — заморозка спасёт серию, как только выйдешь на связь.','You missed yesterday — a freeze will save your streak as soon as you check in.')
+        : tr('Заморозка прикрывает один пропущенный день. +1 за каждые 7 дней подряд, максимум 2.','A freeze covers one missed day. +1 for every 7 days in a row, up to 2.')}</p>
+      ${(c.brokenStreak && c.brokenOn && c.brokenOn >= addDaysISO(-1)) ? `<div class="road-reveal" style="margin-bottom:16px">
+        <div class="rr-label">${tr('Серия прервалась','Your streak broke')}</div>
+        <div class="rr-found">${tr(`Было ${c.brokenStreak} дн. подряд. Вернуть серию можно в течение 48 часов.`, `You had ${c.brokenStreak} days in a row. You can restore it within 48 hours.`)}</div>
+        <button class="prz-btn" style="margin-top:14px;width:100%;height:46px;font-size:15px" ${state.repairBusy?'disabled':''} onclick="doRepairCheckin()">${state.repairBusy ? '…' : tr('Вернуть серию за 300 Л.С.','Restore for 300 Flight Hours')}</button>
+      </div>` : ''}
 
       ${(() => { const pz = (state.prizes||[]).find(x => x.id === state.lastCheckinPrizeId) || (alreadyToday ? (state.prizes||[]).find(x => x.source_ref === 'checkin:' + today) : null);
         if (!pz || !(justRevealed || pz.status === 'ready')) return '';
@@ -4871,7 +4904,7 @@ const SCREENS = {
 
       <h3 style="margin:20px 0 6px;">${tr('Журнал вылазок','Expedition log')}</h3>
       ${c.history && c.history.length
-        ? c.history.slice(0,40).map(h=>`<div class="road-hist-row"><span class="rh-day">${tr('День','Day')} ${h.day}</span><span class="rh-reward">${tf(h)}</span></div>`).join('')
+        ? c.history.slice(0,40).map(h=>`<div class="road-hist-row"><span class="rh-day">${tr('День','Day')} ${h.day}${h.freeze ? ' ❄' : ''}</span><span class="rh-reward">${tf(h)}</span></div>`).join('')
         : `<p class="hint">${tr('Пока пусто — выйди на связь, чтобы начать журнал.','Empty so far — check in to start your log.')}</p>`
       }
     `, {step: tr('Карта','Map')});
@@ -6502,8 +6535,8 @@ function startIllumRecording(){
   try {
     // Higher bitrate for a sharper, less compressed recording.
     illumRecorder = mime
-      ? new MediaRecorder(illumStream, { mimeType: mime, videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 })
-      : new MediaRecorder(illumStream, { videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 });
+      ? new MediaRecorder(illumStream, { mimeType: mime, videoBitsPerSecond: 2_200_000, audioBitsPerSecond: 128_000 })
+      : new MediaRecorder(illumStream, { videoBitsPerSecond: 2_200_000, audioBitsPerSecond: 128_000 });
   } catch (e) { console.warn('MediaRecorder init failed', e); return; }
   illumRecorder.ondataavailable = (e) => { if (e.data && e.data.size>0) illumChunks.push(e.data); };
   illumRecorder.onstop = () => {
@@ -6736,9 +6769,10 @@ async function saveProfileEdit(){
   if (!d.avatarFile && d.avatarUrl && d.avatarUrl !== state.profile.avatarUrl) state.profile.avatarUrl = d.avatarUrl;
   if (d.avatarFile && sb){
     try {
-      const ext = (d.avatarFile.type && d.avatarFile.type.split('/')[1]) || 'jpg';
+      const ext = 'jpg';
       const fileName = `${TG_ID}_${Date.now()}.${ext}`;
-      const { error: upErr } = await sb.storage.from('avatars').upload(fileName, d.avatarFile, { contentType: d.avatarFile.type || 'image/jpeg' });
+      const avatarBlob = await compressImage(d.avatarFile, 800);
+      const { error: upErr } = await sb.storage.from('avatars').upload(fileName, avatarBlob, { contentType: avatarBlob.type || 'image/jpeg' });
       if (!upErr) {
         const { data: pub } = sb.storage.from('avatars').getPublicUrl(fileName);
         if (pub && pub.publicUrl) state.profile.avatarUrl = pub.publicUrl;
@@ -6912,8 +6946,8 @@ function startWizardRecording(){
   const mime = mimeCandidates.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
   try {
     wizRecorder = mime
-      ? new MediaRecorder(wizStream, { mimeType: mime, videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 })
-      : new MediaRecorder(wizStream, { videoBitsPerSecond: 4_000_000, audioBitsPerSecond: 128_000 });
+      ? new MediaRecorder(wizStream, { mimeType: mime, videoBitsPerSecond: 2_200_000, audioBitsPerSecond: 128_000 })
+      : new MediaRecorder(wizStream, { videoBitsPerSecond: 2_200_000, audioBitsPerSecond: 128_000 });
   } catch (e) { console.warn('wizard MediaRecorder init failed', e); return; }
   wizRecorder.ondataavailable = (e) => { if (e.data && e.data.size>0) wizChunks.push(e.data); };
   wizRecorder.onstop = () => {
@@ -7197,6 +7231,7 @@ function applyProfileFromServer(r){
   if (typeof r.ls_total === 'number') state.profile.ls.total = r.ls_total;
   if (typeof r.reputation_total === 'number') state.profile.reputation.total = r.reputation_total;
   if (Array.isArray(r.badges)) state.profile.badges = r.badges;
+  if (typeof r.freezes === 'number') state.profile.checkin.freezes = r.freezes;
 }
 async function claimCheckin(){
   if (!sb || !TG_ID) { v2Toast(tr('Нет связи — попробуй через минуту','No connection — try again in a minute')); return null; }
@@ -7204,12 +7239,37 @@ async function claimCheckin(){
     const { data, error } = await sb.rpc('checkin_open');
     if (error || !data) throw error || new Error('empty');
     const c = state.profile.checkin;
+    const prevStreak = c.streak;
     c.streak = data.streak; c.longest = data.longest; c.lastDate = todayISO();
+    if (typeof data.freezes === 'number') c.freezes = data.freezes;
+    if (data.freeze_used) setTimeout(() => v2Toast(tr('❄ Заморозка спасла серию — пропущенный день не в счёт','❄ A freeze saved your streak — the missed day is covered')), 900);
+    if (data.freeze_earned) setTimeout(() => v2Toast(tr('❄ +1 заморозка за 7 дней подряд','❄ +1 freeze for 7 days in a row')), data.freeze_used ? 3200 : 900);
+    if (data.comeback && data.comeback.id) {
+      state.prizes = [data.comeback].concat((state.prizes||[]).filter(x => x.id !== data.comeback.id));
+      c.brokenStreak = prevStreak || null; c.brokenOn = todayISO();
+      setTimeout(() => v2Toast(tr('С возвращением! +50 Л.С. — в «Моих призах»','Welcome back! +50 Flight Hours — in «My prizes»')), 900);
+    }
     if (Array.isArray(data.history)) c.history = data.history;
     const pr = data.prize && data.prize.id ? data.prize : null;
     if (pr) { state.prizes = [pr].concat((state.prizes||[]).filter(x => x.id !== pr.id)); }
     return pr;
   } catch(e){ v2Toast(tr('Связь барахлит — попробуй ещё раз','Connection hiccup — try again')); return null; }
+}
+async function doRepairCheckin(){
+  if (!sb || state.repairBusy) return;
+  state.repairBusy = true; render();
+  try {
+    const { data, error } = await sb.rpc('checkin_repair');
+    if (error || !data) throw error || new Error('empty');
+    const c = state.profile.checkin;
+    if (data.ok) {
+      c.streak = data.streak; c.longest = data.longest; c.brokenStreak = null; c.brokenOn = null;
+      if (typeof data.ls_total === 'number') state.profile.ls.total = data.ls_total;
+      v2Toast(tr(`Серия возвращена: ${data.streak} дн.`, `Streak restored: ${data.streak} days`));
+    } else if (data.error === 'not_enough_ls') v2Toast(tr('Не хватает Л.С. — нужно 300','Not enough Flight Hours — 300 needed'));
+    else { c.brokenStreak = null; v2Toast(tr('Время на возврат серии вышло','The time to restore the streak has passed')); }
+  } catch(e){ v2Toast(tr('Связь барахлит — попробуй ещё раз','Connection hiccup — try again')); }
+  state.repairBusy = false; render();
 }
 async function doClaimCheckin(){
   if (state.checkinBusy) return;
