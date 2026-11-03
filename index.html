@@ -844,6 +844,55 @@
   .v2-cta.dark{background:rgba(0,0,0,.86);color:#fff}
   .v2-cta.light{background:rgba(255,255,255,.94);color:#000}
   .v2-cta>span:first-child{flex:1}
+  /* Newcomer guide overlay (2026-11-03) */
+  #tyGuide{position:fixed;inset:0;z-index:2147483000;background:#050505;color:#f2f2f2;font-family:var(--font-body);display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #tyGuide .gd-top{display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 20px) 24px 0}
+  #tyGuide .gd-logo{font-family:var(--font-display);font-style:italic;font-weight:900;font-size:22px;letter-spacing:.5px}
+  #tyGuide .gd-skip{background:transparent;border:0;color:#a9a9b0;font:500 14px var(--font-body);padding:12px 4px;min-height:44px;cursor:pointer}
+  #tyGuide .gd-dots{display:flex;gap:6px;padding:14px 24px 0}
+  #tyGuide .gd-dots i{flex:1;height:4px;border-radius:4px;background:#2a2a30}
+  #tyGuide .gd-dots i.on{background:#FF5A1F}
+  #tyGuide .gd-body{flex:1;display:flex;flex-direction:column;gap:16px;padding:24px 24px 0;max-width:520px;width:100%;box-sizing:border-box;margin:0 auto}
+  #tyGuide .gd-eye{font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:#FF5A1F;text-transform:uppercase}
+  #tyGuide h1{margin:0;font-family:var(--font-display);font-style:italic;font-weight:900;font-size:34px;line-height:1.05;text-transform:uppercase}
+  #tyGuide .gd-lead{margin:0;font-size:15px;line-height:1.5;color:#c9c9cf}
+  #tyGuide .gd-w{background:#fff;color:#000;border-radius:24px;padding:16px 18px}
+  #tyGuide .gd-w b{display:block;font-family:var(--font-display);font-style:italic;font-weight:900;font-size:20px;text-transform:uppercase}
+  #tyGuide .gd-w span{display:block;font-size:13px;color:#444;margin-top:4px;line-height:1.45}
+  #tyGuide .gd-col{display:flex;flex-direction:column;gap:10px}
+  #tyGuide .gd-pill{display:inline-block;background:#000;color:#fff;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;margin:10px 6px 0 0}
+  #tyGuide .gd-line{border:1px solid #2a2a30;border-radius:22px;padding:16px;font-size:13px;color:#c9c9cf;line-height:1.5}
+  #tyGuide .gd-line b{color:#fff}
+  #tyGuide .gd-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+  #tyGuide .gd-stats b{display:block;font-size:20px}
+  #tyGuide .gd-stats small{font-size:10px;letter-spacing:1.5px;color:#8a8a92;text-transform:uppercase}
+  #tyGuide .gd-road{display:flex;justify-content:space-between;margin:14px 0}
+  #tyGuide .gd-road i{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-style:normal;border:1px dashed #4a4a52;color:#8a8a92}
+  #tyGuide .gd-road i.d{background:#fff;color:#000;border:0}
+  #tyGuide .gd-road i.n{background:#FF5A1F;color:#000;border:0}
+  #tyGuide .gd-fake{background:#fff;color:#000;border-radius:14px;padding:14px;text-align:center;font-weight:700;font-size:15px}
+  #tyGuide .gd-mono{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;color:#666}
+  #tyGuide .gd-rep{min-height:48px;width:100%;border-radius:14px;border:0;font:700 14px var(--font-body);cursor:pointer;background:#000;color:#fff;margin:12px 0}
+  #tyGuide .gd-rep.ok{background:#e7e7ea;color:#000}
+  #tyGuide .gd-vid{display:flex;gap:12px}
+  #tyGuide .gd-cam{flex:1;height:190px;background:linear-gradient(#1b1b1f,#0d0d10);border:1px solid #2a2a30;border-radius:22px;position:relative;display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px;box-sizing:border-box}
+  #tyGuide .gd-cam em{position:absolute;top:14px;left:14px;font-style:normal;font-size:12px;display:flex;align-items:center;gap:6px}
+  #tyGuide .gd-cam em:before{content:'';width:9px;height:9px;border-radius:50%;background:#FF5A1F}
+  #tyGuide .gd-cam i{width:52px;height:52px;border-radius:50%;border:4px solid #fff;display:flex;align-items:center;justify-content:center}
+  #tyGuide .gd-cam i:after{content:'';width:36px;height:36px;border-radius:50%;background:#FF5A1F}
+  #tyGuide .gd-wit{width:120px;flex-shrink:0;background:#fff;color:#000;border-radius:22px;padding:14px;box-sizing:border-box;font-size:11px;color:#555;line-height:1.4}
+  #tyGuide .gd-wit b{display:block;font-size:12px;color:#000;margin:8px 0 4px}
+  #tyGuide .gd-av{width:40px;height:40px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:900;flex-shrink:0;overflow:hidden}
+  #tyGuide .gd-av img{width:100%;height:100%;object-fit:cover;object-position:top}
+  #tyGuide .gd-men{background:#fff;color:#000;border-radius:22px;padding:12px 16px;display:flex;gap:14px;align-items:center}
+  #tyGuide .gd-men .gd-av{width:46px;height:46px}
+  #tyGuide .gd-men b{font-size:15px}#tyGuide .gd-men span{display:block;font-size:12px;color:#555;margin-top:2px;line-height:1.4}
+  #tyGuide .gd-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #tyGuide .gd-g2 .gd-w b{font-size:clamp(15px,4.7vw,19px);white-space:nowrap}
+  #tyGuide .gd-g2 .gd-line{grid-column:span 2}
+  #tyGuide .gd-foot{display:flex;gap:10px;padding:20px 24px calc(env(safe-area-inset-bottom,0px) + 28px);max-width:520px;width:100%;box-sizing:border-box;margin:0 auto}
+  #tyGuide .gd-back{width:56px;min-height:56px;border-radius:18px;border:1px solid #2a2a30;background:transparent;color:#fff;font-size:20px;cursor:pointer}
+  #tyGuide .gd-next{flex:1;min-height:56px;border-radius:18px;border:0;background:#FF5A1F;color:#000;font:700 16px var(--font-body);cursor:pointer}
   .v2-orb{width:42px;height:42px;border-radius:11px;background:#FF5A1F;color:#000;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .v2-orb svg{width:18px;height:18px}
   .v2-done{height:48px;border-radius:14px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:13px;letter-spacing:.05em;color:#000;text-transform:uppercase}
@@ -2101,7 +2150,7 @@ async function hydrateFromDB(){
   hydrating = true; setHydrateUi('loading');
   try {
     for (;;) {
-      try { await hydrateFromDBOnce(); setHydrateUi(null); return; }
+      try { await hydrateFromDBOnce(); setHydrateUi(null); maybeShowGuide(); return; }
       catch (e) {
         hydrateTries++;
         if (hydrateTries >= 4) { setHydrateUi('failed'); return; }
@@ -2110,6 +2159,59 @@ async function hydrateFromDB(){
     }
   } finally { hydrating = false; }
 }
+// ---- Newcomer guide (2026-11-03). Shown once per user after onboarding / on next launch;
+// reopen from «Ещё» → «Как это работает». Overlay on top of the app, independent of SCREENS.
+const GUIDE = { i: 0, reported: false };
+function guideSeenKey(){ return 'tyaga_guide_seen_' + (TG_ID || 'anon'); }
+function guideSeen(){ try { return localStorage.getItem(guideSeenKey()) === '1'; } catch(e){ return true; } }
+function guideMarkSeen(){ try { localStorage.setItem(guideSeenKey(), '1'); } catch(e){} }
+function guideHasMissions(){ return (state.missions||[]).length > 0; }
+function guideSteps(){
+  const first = !guideHasMissions();
+  return [
+    { k:'welcome', eye:tr('Добро пожаловать','Welcome'), t:tr('Здесь цели доводят до конца','Where goals get finished'), lead:tr('Покажу, как устроена ТЯГА. Займёт минуту — можно пропустить и вернуться позже.','Let me show you how TYAGA works. It takes a minute — you can skip and come back later.'), cta:tr('Покажи','Show me') },
+    { k:'mission', eye:tr('Шаг 1 · Миссия','Step 1 · Mission'), t:tr('Начни с миссии','Start with a mission'), lead:tr('Нажми «+» или «Запустить первую миссию» на главном экране и выбери тип:','Tap «+» or «Launch your first mission» on the home screen and pick a type:'), cta:tr('Дальше','Next') },
+    { k:'promise', eye:tr('Шаг 2 · Обещание','Step 2 · Promise'), t:tr('Дай обещание','Make a promise'), lead:tr('Запиши короткое видео: что сделаешь и зачем. Позови свидетеля — с ним до финиша доходят чаще.','Record a short video: what you will do and why. Invite a witness — people with one reach the finish more often.'), cta:tr('Дальше','Next') },
+    { k:'report', eye:tr('Шаг 3 · Отчёт','Step 3 · Report'), t:tr('Отчитывайся каждый день','Report every day'), lead:tr('Видео, фото или пара слов. Нажми кнопку на билете — попробуй:','A video, a photo or a few words. Tap the button on the ticket — try it:'), cta:tr('Дальше','Next') },
+    { k:'radio', eye:tr('Шаг 4 · Радиообмен','Step 4 · Radio check-in'), t:tr('Выходи на связь','Check in daily'), lead:tr('Заходи каждый день и забирай награду. Чем длиннее серия, тем ценнее находки.','Drop by every day and claim your reward. The longer the streak, the better the finds.'), cta:tr('Дальше','Next') },
+    { k:'mentors', eye:tr('Шаг 5 · Наставники','Step 5 · Mentors'), t:tr('Ты не один','You are not alone'), lead:tr('Наставники пишут в Telegram: напомнят, поддержат, разберут трудный день.','Mentors write to you in Telegram: they remind, support and help with a hard day.'), cta:tr('Дальше','Next') },
+    { k:'points', eye:tr('Шаг 6 · Очки','Step 6 · Points'), t:tr('Л.С. и Репутация','Flight Hours and Reputation'), lead:tr('Каждый отчёт приносит очки и доверие.','Every report earns points and trust.'), cta:tr('Дальше','Next') },
+    { k:'finish', eye:tr('Всё готово','All set'), t:tr('Сделай это','Do it'), lead:tr('Остальное покажем по ходу. Гид всегда можно открыть снова: «Ещё» → «Как это работает».','We will show the rest along the way. You can reopen the guide any time: «More» → «How it works».'), cta: first ? tr('Запустить первую миссию','Launch your first mission') : tr('Поехали','Let’s go') },
+  ];
+}
+function guideBody(k){
+  const W = (b, sp) => `<div class="gd-w"><b>${b}</b><span>${sp}</span></div>`;
+  if (k==='welcome') return `<div class="gd-w" style="border-radius:28px;padding:22px"><b style="font-size:26px">${tr('Сделаю это','I will do it')}</b><span style="font-size:14px;color:#333">${tr('Миссия → обещание → отчёт каждый день → финиш. Наставники и друзья рядом весь путь.','Mission → promise → daily report → finish. Mentors and friends are with you all the way.')}</span><i class="gd-pill">${tr('1 минута','1 minute')}</i><i class="gd-pill">${tr('7 шагов','7 steps')}</i></div>`;
+  if (k==='mission') return `<div class="gd-col">${W(tr('Привычка','Habit'), tr('Делаешь каждый день: 21, 66 или 90 дней','Every day for 21, 66 or 90 days'))}${W(tr('Результат','Result'), tr('Цель к конкретной дате','A goal by a specific date'))}${W(tr('Аскеза','Abstinence'), tr('Осознанный отказ от привычки или чего-либо','A conscious break from a habit or something else'))}</div>`;
+  if (k==='promise') return `<div class="gd-vid"><div class="gd-cam"><em>0:24</em><i></i></div><div class="gd-wit"><div class="gd-av" style="background:#e7e7ea;color:#000">${tr('А','A')}</div><b>${tr('Свидетель','Witness')}</b>${tr('видит обещание и твои отчёты','sees your promise and your reports')}</div></div>`;
+  if (k==='report') return `<div class="gd-w" style="border-radius:26px;padding:18px"><div class="gd-mono"><span>№ 0042 · ${tr('ПРИВЫЧКА','HABIT')}</span><span>${tr('ДЕНЬ','DAY')} 12 / 66</span></div><b style="font-size:24px;margin-top:10px">${tr('Делаю это','Doing it')}</b><span style="font-weight:600;color:#000;font-size:14px">${tr('Спать до 23:00','Asleep by 11 pm')}</span><button class="gd-rep ${GUIDE.reported?'ok':''}" onclick="GUIDE.reported=!GUIDE.reported;guideRender()">${GUIDE.reported ? tr('Отчёт принят ✓','Report accepted ✓') : tr('Отчитаться по этой миссии','Report on this mission')}</button><span style="font-size:12px;color:#555">${tr('Пропустил день? Спасёт заморозка ❄ или «Второй шанс». Три дня без отчёта и ответа — миссия не засчитана.','Missed a day? A freeze ❄ or a «Second chance» saves it. Three days with no report and no answer — the mission does not count.')}</span></div>`;
+  if (k==='radio') return `<div class="gd-line" style="padding:18px"><div class="gd-stats"><div><b>14</b><small>${tr('Серия','Streak')}</small></div><div><b>❄ 1</b><small>${tr('Заморозки','Freezes')}</small></div><div><b>500</b><small>${tr('Л.С. сегодня','FH today')}</small></div></div><div class="gd-road"><i class="d">✓</i><i class="d">✓</i><i class="d">✓</i><i class="n">▲</i><i>5</i><i>6</i></div><div class="gd-fake">${tr('Выйти на связь','Check in')}</div></div>`;
+  if (k==='mentors') {
+    const men = [['Космонавт','Cosmonaut',tr('Николай Орлов. Держит слово и учит этому.','Nikolai Orlov. Keeps his word and teaches it.')],['Баба Зина','Baba Zina',tr('Тепло, с юмором и по-честному. Привычки и аскеза.','Warm, funny and honest. Habits and abstinence.')],['Леха P1x3l','Lyokha P1x3l',tr('Цель как квест: уровни, отчёты, босс в финале.','A goal as a quest: levels, reports, a boss at the end.')]];
+    return `<div class="gd-col">${men.map(([ru,en,ab]) => { const h = (typeof MENTOR_HERO!=='undefined' && MENTOR_HERO[ru]) || null; const img = h && (h.ava || h.cut); return `<div class="gd-men"><div class="gd-av">${img ? `<img src="${img}" alt="">` : ru[0]}</div><div><b>${tr(ru,en)}</b><span>${ab}</span></div></div>`; }).join('')}</div>`;
+  }
+  if (k==='points') return `<div class="gd-g2">${W(tr('Л.С.','FH'), tr('Твои очки за отчёты и Радиообмен. Тратишь на призы и ремонт серии.','Your points for reports and check-ins. Spend them on prizes and streak repair.'))}${W(tr('Репутация','Reputation'), tr('Видна всем. Растёт с честными отчётами и даёт уровень доверия.','Visible to all. Grows with honest reports and sets your trust level.'))}<div class="gd-line"><b>${tr('Иллюминатор','Illuminator')}</b> — ${tr('лента отчётов. Поддержи других — и тебя поддержат.','the report feed. Support others and they will support you.')}</div></div>`;
+  return `<div class="gd-w" style="border-radius:28px;padding:22px"><b style="font-size:26px">${tr('Готов к старту','Ready for launch')}</b><span style="font-size:14px;color:#333">${guideHasMissions() ? tr('Твои миссии ждут на главном экране. Отчитайся сегодня — и забери награду в Радиообмене.','Your missions are waiting on the home screen. Report today and claim your check-in reward.') : tr('Первая миссия собирается за пару минут.','Your first mission takes a couple of minutes.')}</span></div>`;
+}
+function guideRender(){
+  let el = document.getElementById('tyGuide'); if (!el) return;
+  const st = guideSteps(), i = Math.min(GUIDE.i, st.length-1), x = st[i], last = i === st.length-1;
+  el.innerHTML = `<div class="gd-top"><div class="gd-logo">ТЯГА</div>${!last ? `<button class="gd-skip" onclick="guideGo(${st.length-1})">${tr('Пропустить','Skip')}</button>` : `<button class="gd-skip" onclick="closeGuide()">${tr('Закрыть','Close')}</button>`}</div>
+    <div class="gd-dots">${st.map((_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')}</div>
+    <div class="gd-body"><div class="gd-eye">${x.eye}</div><h1>${x.t}</h1><p class="gd-lead">${x.lead}</p>${guideBody(x.k)}</div>
+    <div class="gd-foot">${i>0?`<button class="gd-back" aria-label="${tr('Назад','Back')}" onclick="guideGo(${i-1})">←</button>`:''}<button class="gd-next" onclick="${last?'finishGuide()':`guideGo(${i+1})`}">${x.cta}</button></div>`;
+  el.scrollTop = 0;
+}
+function guideGo(i){ GUIDE.i = i; GUIDE.reported = false; guideRender(); }
+function openGuide(){
+  if (document.getElementById('tyGuide')) return;
+  GUIDE.i = 0; GUIDE.reported = false;
+  const el = document.createElement('div'); el.id = 'tyGuide'; el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true');
+  document.body.appendChild(el); guideRender();
+}
+function closeGuide(){ guideMarkSeen(); const el = document.getElementById('tyGuide'); if (el) el.remove(); }
+function finishGuide(){ const first = !guideHasMissions(); closeGuide(); if (first) startNewMission(); else if (state.screen !== 'home') go('home',{replace:true}); }
+function maybeShowGuide(){ if (!guideSeen() && typeof isOnboarded === 'function' && isOnboarded()) setTimeout(() => { if (!guideSeen()) openGuide(); }, 400); }
 function retryHydrate(){ if (dbHydrated || hydrating) return; hydrateTries = 0; hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
 function setHydrateUi(mode){
   try {
@@ -5186,6 +5288,7 @@ const SCREENS = {
         <div class="mo-row" style="cursor:default">${tr('Язык','Language')}<div class="mo-lang"><button class="${state.lang==='ru'?'on':''}" onclick="setLang('ru')">RU</button><button class="${state.lang==='en'?'on':''}" onclick="setLang('en')">EN</button></div></div>
         ${(state.witnessing||[]).length ? row(tr('Я свидетель','I am a witness'), "go('witnessList')", String(state.witnessing.length)) : ''}
         ${row(tr('Оплата и доставка','Payment and delivery'), "openDoc('payment')")}
+        ${row(tr('Как это работает','How it works'), "openGuide()")}
         ${row(tr('Документы','Documents'), "go('documents')")}
         ${row(tr('Поддержка','Support'), "go('support')", 'spark@tyaga.tech')}
       </div>
@@ -6432,6 +6535,7 @@ function finishOnboarding(lang){
   dbSaveOnboarding(o.name.trim(), o.gender, ageNum);
   go('tickets',{replace:true});
   setTimeout(() => { sendAttribution(); applyPendingTemplate(); }, 300);
+  maybeShowGuide();
 }
 function togglePublic(){ const key='public'; if (BOOSTS_SOON.includes(key)) { v2Toast(tr('Это усиление скоро появится','This boost is coming soon')); return; } state.form.boosts.public=!state.form.boosts.public; render(); }
 // Habit's boosts screen reuses the same a-la-carte set Askeza pioneered
@@ -8557,6 +8661,26 @@ async function loadCoach(){
   } catch(e){}
   if (['home','missionDetail'].includes(state.screen)) safeRender();
 }
+function freezeBtn(id){
+  const n = ((state.profile||{}).checkin||{}).freezes || 0;
+  return n > 0 ? `<button class="coach-ghost" onclick="freezeMiss(${id})">${tr(`❄ Заморозить день (осталось ${n})`, `❄ Freeze the day (${n} left)`)}</button>` : '';
+}
+async function freezeMiss(id){
+  const x = (state.coach.misses||[]).find(z => z.id === id); if (!x || !sb) return;
+  let r = null;
+  try { const { data, error } = await sb.rpc('miss_freeze', { p_miss: id }); if (error) throw error; r = data; } catch(e){ v2Toast(tr('Не получилось — попробуй ещё раз','Did not work — try again')); return; }
+  if (r && r.ok) {
+    state.coach.misses = state.coach.misses.filter(z => z.id !== id);
+    if (state.profile && state.profile.checkin) state.profile.checkin.freezes = r.freezes;
+    const m = (state.missions||[]).find(mm => mm.dbId === x.mission_id);
+    if (m && (!m.lastReportDate || m.lastReportDate < x.day)) m.lastReportDate = x.day;
+    v2Toast(tr('❄ День заморожен — миссия продолжается','❄ Day frozen — the mission goes on'));
+  } else if (r && r.error === 'no_freezes') {
+    if (state.profile && state.profile.checkin) state.profile.checkin.freezes = 0;
+    v2Toast(tr('Заморозок нет. Новая — за каждые 7 дней Радиообмена подряд','No freezes left. You get one for every 7 days of Radio check-in in a row'));
+  } else { state.coach.misses = state.coach.misses.filter(z => z.id !== id); v2Toast(tr('Уже решено','Already decided')); }
+  render();
+}
 function coachBanners(){
   const C = state.coach || {}, out = [];
   (C.misses||[]).forEach(x => {
@@ -8570,6 +8694,7 @@ function coachBanners(){
       <p>${tr('Отчёта не было. Что случилось? Отчитайся сегодня — и миссия идёт дальше. Без отчёта и ответа 3 дня миссия будет засчитана как незавершённая.','There was no report. What happened? Report today and the mission goes on. With no report and no answer for 3 days the mission counts as not completed.')}</p>
       <div class="coach-btns">${mi >= 0 ? `<button class="v2-cta light" onclick="startDailyReport(${mi})"><span>${tr('Отчитаться сейчас','Report now')}</span><span class="v2-orb">${V2_ARROW}</span></button>` : ''}
       ${ticket ? `<button class="coach-ghost" onclick="answerSecondChance(${x.id}, true)">${tr('Использовать билет «Второй шанс»','Use the «Second chance» ticket')}</button>` : ''}
+      ${freezeBtn(x.id)}
       <button class="coach-ghost" onclick="confirmMissFail(${x.id})">${tr('Не получилось — миссия не удалась','Did not work out — mission failed')}</button></div>
     </div>`); return; }
     if (x.status === 'confirm') { out.push(`<div class="coach-card">
@@ -8577,6 +8702,7 @@ function coachBanners(){
       <b>${tr(`За ${v2DateShort(x.day)} нет отчёта по «${v2Esc(m ? m.title : '')}»`, `No report for ${v2DateShort(x.day)} on «${v2Esc(m ? m.title : '')}»`)}</b>
       <p>${tr('Это ежедневная привычка — без отчёта миссия не засчитывается. Подтверди, что так и есть. Если помешало серьёзное — болезнь, нет связи, форс-мажор — напиши в поддержку, сохраним миссию.','This is a daily habit — without a report the mission does not count. Confirm that is the case. If something serious got in the way — illness, no connection, force majeure — contact support and we will keep the mission.')}</p>
       <div class="coach-btns"><button class="v2-cta light" onclick="confirmMissFail(${x.id})"><span>${tr('Да, миссия не удалась','Yes, the mission failed')}</span><span class="v2-orb">${V2_ARROW}</span></button>
+      ${freezeBtn(x.id)}
       <button class="coach-ghost" onclick="go('support')">${tr('Форс-мажор — в поддержку','Force majeure — support')}</button></div>
     </div>`); return; }
     out.push(`<div class="coach-card">
@@ -8584,6 +8710,7 @@ function coachBanners(){
       <b>${tr(`За ${v2DateShort(x.day)} нет отчёта по «${v2Esc(m ? m.title : '')}»`, `No report for ${v2DateShort(x.day)} on «${v2Esc(m ? m.title : '')}»`)}</b>
       <p>${tr('Используем билет — миссия продолжится без провала. Без билета миссия остановится. Если не ответишь за сутки, билет используется сам.','Use the ticket and the mission goes on. Without it the mission stops. No answer in 24 h uses the ticket automatically.')}</p>
       <div class="coach-btns"><button class="v2-cta light" onclick="answerSecondChance(${x.id}, true)"><span>${tr('Да, использовать билет','Yes, use the ticket')}</span><span class="v2-orb">${V2_ARROW}</span></button>
+      ${freezeBtn(x.id)}
       <button class="coach-ghost" onclick="answerSecondChance(${x.id}, false)">${tr('Нет','No')}</button>
       <button class="coach-ghost" onclick="go('support')">${tr('Форс-мажор — в поддержку','Force majeure — support')}</button></div>
     </div>`);
