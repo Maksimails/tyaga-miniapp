@@ -2034,7 +2034,7 @@ async function hydrateFromDBOnce(){
       if (userRow.onboarded) {
         markOnboarded();
         if (userRow.first_name && !state.profile.name) state.profile.name = userRow.first_name;
-        if (['onboardLang', 'onboardConsent', 'onboardName'].includes(state.screen)) { state.history = []; go('home', { replace: true }); }
+        if (['splash', 'onboardLang', 'onboardConsent', 'onboardName'].includes(state.screen)) { state.history = []; go('home', { replace: true }); }
       }
       if (userRow.age_confirmed_18) state.age18Confirmed = true;
       // Local storage wins if the viewer already picked a language on this device;
@@ -2275,7 +2275,8 @@ async function uploadIlluminatorVideo(blob, caption, missionType){
 }
 
 const state = {
-  screen: 'splash',
+  // Returning users skip the logo screen and land on the home screen (data loads with the «Загружаю…» pill).
+  screen: (typeof isOnboarded === 'function' && isOnboarded()) ? 'home' : 'splash',
   history: [],
   showNav: false,
   onboard: { dataOk:false, agreeOk:false, notifyOk:false, name:'', age:'', gender:null },
