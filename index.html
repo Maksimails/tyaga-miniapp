@@ -2162,7 +2162,9 @@ async function hydrateFromDB(){
 // ---- Newcomer guide (2026-11-03). Shown once per user after onboarding / on next launch;
 // reopen from «Ещё» → «Как это работает». Overlay on top of the app, independent of SCREENS.
 const GUIDE = { i: 0, reported: false };
-function guideSeenKey(){ return 'tyaga_guide_seen_' + (TG_ID || 'anon'); }
+const GUIDE_TESTERS = [828842126]; // preview: only Maksim until approved for everyone
+function guideAllowed(){ return GUIDE_TESTERS.includes(Number(TG_ID)); }
+function guideSeenKey(){ return 'tyaga_guide_seen_v2_' + (TG_ID || 'anon'); }
 function guideSeen(){ try { return localStorage.getItem(guideSeenKey()) === '1'; } catch(e){ return true; } }
 function guideMarkSeen(){ try { localStorage.setItem(guideSeenKey(), '1'); } catch(e){} }
 function guideHasMissions(){ return (state.missions||[]).length > 0; }
@@ -2211,7 +2213,7 @@ function openGuide(){
 }
 function closeGuide(){ guideMarkSeen(); const el = document.getElementById('tyGuide'); if (el) el.remove(); }
 function finishGuide(){ const first = !guideHasMissions(); closeGuide(); if (first) startNewMission(); else if (state.screen !== 'home') go('home',{replace:true}); }
-function maybeShowGuide(){ if (!guideSeen() && typeof isOnboarded === 'function' && isOnboarded()) setTimeout(() => { if (!guideSeen()) openGuide(); }, 400); }
+function maybeShowGuide(){ if (guideAllowed() && !guideSeen() && typeof isOnboarded === 'function' && isOnboarded()) setTimeout(() => { if (!guideSeen()) openGuide(); }, 400); }
 function retryHydrate(){ if (dbHydrated || hydrating) return; hydrateTries = 0; hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
 function setHydrateUi(mode){
   try {
@@ -5288,7 +5290,7 @@ const SCREENS = {
         <div class="mo-row" style="cursor:default">${tr('Язык','Language')}<div class="mo-lang"><button class="${state.lang==='ru'?'on':''}" onclick="setLang('ru')">RU</button><button class="${state.lang==='en'?'on':''}" onclick="setLang('en')">EN</button></div></div>
         ${(state.witnessing||[]).length ? row(tr('Я свидетель','I am a witness'), "go('witnessList')", String(state.witnessing.length)) : ''}
         ${row(tr('Оплата и доставка','Payment and delivery'), "openDoc('payment')")}
-        ${row(tr('Как это работает','How it works'), "openGuide()")}
+        ${guideAllowed() ? row(tr('Как это работает','How it works'), "openGuide()") : ''}
         ${row(tr('Документы','Documents'), "go('documents')")}
         ${row(tr('Поддержка','Support'), "go('support')", 'spark@tyaga.tech')}
       </div>
