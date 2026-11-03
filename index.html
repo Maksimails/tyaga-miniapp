@@ -846,6 +846,13 @@
   .v2-cta>span:first-child{flex:1}
   /* Newcomer guide overlay (2026-11-03) */
   #tyGuide{position:fixed;inset:0;z-index:2147483000;background:#050505;color:#f2f2f2;font-family:var(--font-body);display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #tyGuide.gd-intro{background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:24px;box-sizing:border-box;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  #tyGuide .gd-pop{width:100%;max-width:360px;background:#111114;border:1px solid #2a2a30;border-radius:28px;padding:24px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;animation:gdPop .22s ease-out}
+  #tyGuide .gd-pop h2{margin:0;font-family:var(--font-display);font-style:italic;font-weight:900;font-size:28px;line-height:1.05;text-transform:uppercase}
+  #tyGuide .gd-pop p{margin:0;font-size:14px;line-height:1.5;color:#c9c9cf}
+  #tyGuide .gd-pop-btns{display:flex;gap:10px;margin-top:8px}
+  #tyGuide .gd-back.gd-pass{width:auto;flex:0 0 auto;padding:0 18px;font:600 15px var(--font-body)}
+  @keyframes gdPop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
   #tyGuide .gd-top{display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 20px) 24px 0}
   #tyGuide .gd-logo{font-family:var(--font-display);font-style:italic;font-weight:900;font-size:22px;letter-spacing:.5px}
   #tyGuide .gd-skip{background:transparent;border:0;color:#a9a9b0;font:500 14px var(--font-body);padding:12px 4px;min-height:44px;cursor:pointer}
@@ -1328,12 +1335,11 @@
   .ms-lock{margin-top:10px;text-align:center;font-size:12px;line-height:1.45;color:#8c8c8c}
 
 /* hydration state: dim main screens instead of showing zeros while the user's data loads */
-body.tg-hydrating[data-screen="tickets"] #view, body.tg-hydrating[data-screen="home"] #view, body.tg-hydrating[data-screen="profile"] #view,
-body.tg-hydrating[data-screen="more"] #view, body.tg-hydrating[data-screen="checkinRoad"] #view { opacity:.18; pointer-events:none; transition:opacity .2s; }
-#hydrateBar { position:fixed; left:50%; top:calc(env(safe-area-inset-top, 0px) + 14px); transform:translateX(-50%); z-index:9999; display:flex; align-items:center; gap:10px;
-  background:#fff; color:#000; font:600 14px/1.2 Montserrat, system-ui, sans-serif; padding:10px 16px; border-radius:999px; box-shadow:0 6px 24px rgba(0,0,0,.45); max-width:calc(100vw - 32px); }
-#hydrateBar i { width:14px; height:14px; border-radius:50%; border:2px solid #000; border-right-color:transparent; animation:hbspin .8s linear infinite; flex:none; }
-#hydrateBar.hb-failed { border-radius:18px; }
+/* hydration no longer blocks the app: last saved data shows instantly, a small pill says it is refreshing */
+#hydrateBar { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom, 0px) + 104px); transform:translateX(-50%); z-index:9999; display:flex; align-items:center; gap:8px; pointer-events:none; white-space:nowrap;
+  background:rgba(255,255,255,.92); color:#000; font:600 12px/1.2 Montserrat, system-ui, sans-serif; padding:7px 12px; border-radius:999px; box-shadow:0 6px 24px rgba(0,0,0,.45); max-width:calc(100vw - 32px); }
+#hydrateBar i { width:11px; height:11px; border-radius:50%; border:2px solid #000; border-right-color:transparent; animation:hbspin .8s linear infinite; flex:none; }
+#hydrateBar.hb-failed { border-radius:18px; pointer-events:auto; white-space:normal; font-size:13px; padding:10px 14px; }
 #hydrateBar button { background:#FF5A1F; color:#000; border:0; border-radius:999px; padding:8px 14px; font:700 13px/1 Montserrat, system-ui, sans-serif; flex:none; }
 @keyframes hbspin { to { transform:rotate(360deg); } }
 </style>
@@ -1400,6 +1406,45 @@ const USER_NAME_EN = 'Alex';
 // Перед публичным запуском заменить на проверку через Edge Function.
 const SUPABASE_URL = 'https://digeevjdjzrkogninmbt.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpZ2Vldmpkanpya29nbmlubWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTA5MjgsImV4cCI6MjEwMzkyNjkyOH0.0bGZPfKL9W5JvyHE9nYkDVZxRvoSlvf5HotuWJrHwqc';
+// ==== Сеть: api.tyaga.tech (наш прокси к Supabase) с запасным прямым адресом и таймаутами ====
+// supabase.co в РФ блокируется/тормозит — поэтому сначала идём через свой домен, при сетевой ошибке
+// переключаемся на прямой адрес. Зависшие запросы обрываются по таймауту, а не висят «Связь…» вечно.
+const API_PROXY = 'https://api.tyaga.tech';
+const API_NET = { proxyDownUntil: 0, directDownUntil: 0 };
+try { const v = Number(sessionStorage.getItem('tyaga_proxy_down') || 0); if (v > Date.now()) API_NET.proxyDownUntil = v; } catch(e){}
+function apiProxyOn(){ return Date.now() >= API_NET.proxyDownUntil; }
+function apiUrl(u){ return (typeof u === 'string' && apiProxyOn()) ? u.split(SUPABASE_URL).join(API_PROXY) : u; }
+function fetchTimeout(url, init, ms){
+  const ctl = new AbortController(); const outer = init && init.signal;
+  if (outer) { if (outer.aborted) ctl.abort(); else outer.addEventListener('abort', () => ctl.abort(), { once: true }); }
+  const t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, Object.assign({}, init, { signal: ctl.signal })).finally(() => clearTimeout(t));
+}
+async function apiFetch(input, init){
+  const url = typeof input === 'string' ? input : (input && input.url) || String(input);
+  const isUpload = !!(init && init.body && typeof init.body !== 'string');
+  const ms = isUpload ? 120000 : 15000;
+  if (url.indexOf(SUPABASE_URL) === 0 && apiProxyOn()) {
+    try {
+      const r = await fetchTimeout(url.split(SUPABASE_URL).join(API_PROXY), init, isUpload ? ms : 9000);
+      if (r.status === 530 || r.status === 522 || r.status === 523) throw new Error('proxy ' + r.status);
+      return apiRewriteResponse(r);
+    } catch (e) {
+      if (init && init.signal && init.signal.aborted) throw e;
+      API_NET.proxyDownUntil = Date.now() + 5 * 60e3;
+      try { sessionStorage.setItem('tyaga_proxy_down', String(API_NET.proxyDownUntil)); } catch(_){}
+    }
+  }
+  return fetchTimeout(url, init, ms);
+}
+// Ссылки на файлы в ответах базы (фото, видео, аватары) тоже переводим на свой домен.
+async function apiRewriteResponse(r){
+  const ct = r.headers.get('content-type') || '';
+  if (!/json/.test(ct)) return r;
+  const txt = await r.text();
+  const out = txt.indexOf(SUPABASE_URL) >= 0 ? txt.split(SUPABASE_URL).join(API_PROXY) : txt;
+  return new Response(out, { status: r.status, statusText: r.statusText, headers: r.headers });
+}
 // ==== Веб-версия (app.tyaga.tech) ====
 const TYAGA_WEB_VERSION = '1.0';
 const IS_TG = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.platform && window.Telegram.WebApp.platform !== 'unknown');
@@ -1412,7 +1457,7 @@ function webSession(){ try { return JSON.parse(localStorage.getItem(WEB_KEY) || 
 function saveWebSession(v){ try { v ? localStorage.setItem(WEB_KEY, JSON.stringify(v)) : localStorage.removeItem(WEB_KEY); } catch (e) {} }
 async function webAuthCall(action, body){
   body = body || {};
-  const r = await fetch(SUPABASE_URL + '/functions/v1/web-auth', {
+  const r = await apiFetch(SUPABASE_URL + '/functions/v1/web-auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + (body.bearer || SUPABASE_ANON_KEY) },
     body: JSON.stringify(Object.assign({ action }, body, { bearer: undefined })),
@@ -1481,7 +1526,7 @@ function tgAuth(force){
   if (!force && TG_AUTH.token && TG_AUTH.exp * 1000 - Date.now() > 3600e3) return Promise.resolve(TG_AUTH.token);
   if (TG_AUTH.promise) return TG_AUTH.promise;
   const first = !TG_AUTH.token;
-  TG_AUTH.promise = fetch(SUPABASE_URL + '/functions/v1/tg-auth', {
+  TG_AUTH.promise = apiFetch(SUPABASE_URL + '/functions/v1/tg-auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
     body: JSON.stringify({ initData, platform: tg.platform || '', version: tg.version || '', session: TRACK_SESSION, event: first }),
@@ -1497,7 +1542,7 @@ tgAuth();
 let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { accessToken: authToken });
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { accessToken: authToken, global: { fetch: apiFetch } });
   }
 } catch (e) { console.warn('Supabase init failed', e); }
 
@@ -1737,7 +1782,7 @@ async function doInitiatePaymentInner(kind, cfg){
     return;
   }
   try {
-    const res = await fetch(PAYMENT_FUNCTIONS_BASE + 'create-payment', {
+    const res = await apiFetch(PAYMENT_FUNCTIONS_BASE + 'create-payment', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+(await authToken()), 'apikey':SUPABASE_ANON_KEY },
       body: JSON.stringify({
@@ -1839,7 +1884,7 @@ async function paymentStatusOnce(){
 // notification is late). Safe: the server only trusts ЮKassa's own answer.
 function verifyPaymentOnServer(paymentId){
   if (!paymentId) return Promise.resolve();
-  return fetch(PAYMENT_FUNCTIONS_BASE + 'yookassa-webhook', {
+  return apiFetch(PAYMENT_FUNCTIONS_BASE + 'yookassa-webhook', {
     method:'POST', mode:'no-cors', headers:{ 'Content-Type':'text/plain' },
     body: JSON.stringify({ tyaga_payment_id: paymentId }),
   }).catch(()=>{});
@@ -1951,7 +1996,7 @@ async function sendSupport(){
   supKeep(); SUPPORT_FORM.sending = true; SUPPORT_FORM.error = null; render();
   try {
     let token = SUPABASE_ANON_KEY; try { token = await authToken(); } catch (e) {}
-    const r = await fetch(SUPABASE_URL + '/functions/v1/support', {
+    const r = await apiFetch(SUPABASE_URL + '/functions/v1/support', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ topic: SUPPORT_FORM.topic, message: msg.trim(), contact: contact.trim(), name: name.trim(), meta: supportMeta(), screen: (state.history || []).slice(-1)[0] || 'more', version: (typeof TYAGA_WEB_VERSION !== 'undefined' ? TYAGA_WEB_VERSION : '') + (IS_TG ? '-tg' : '-web') }),
@@ -2150,7 +2195,7 @@ async function hydrateFromDB(){
   hydrating = true; setHydrateUi('loading');
   try {
     for (;;) {
-      try { await hydrateFromDBOnce(); setHydrateUi(null); maybeShowGuide(); return; }
+      try { await hydrateFromDBOnce(); setHydrateUi(null); maybeShowGuide(); setTimeout(saveSnapshot, 4000); return; }
       catch (e) {
         hydrateTries++;
         if (hydrateTries >= 4) { setHydrateUi('failed'); return; }
@@ -2161,10 +2206,10 @@ async function hydrateFromDB(){
 }
 // ---- Newcomer guide (2026-11-03). Shown once per user after onboarding / on next launch;
 // reopen from «Ещё» → «Как это работает». Overlay on top of the app, independent of SCREENS.
-const GUIDE = { i: 0, reported: false };
+const GUIDE = { i: 0, reported: false, intro: true };
 const GUIDE_TESTERS = [828842126]; // preview: only Maksim until approved for everyone
 function guideAllowed(){ return GUIDE_TESTERS.includes(Number(TG_ID)); }
-function guideSeenKey(){ return 'tyaga_guide_seen_v2_' + (TG_ID || 'anon'); }
+function guideSeenKey(){ return 'tyaga_guide_seen_v3_' + (TG_ID || 'anon'); }
 function guideSeen(){ try { return localStorage.getItem(guideSeenKey()) === '1'; } catch(e){ return true; } }
 function guideMarkSeen(){ try { localStorage.setItem(guideSeenKey(), '1'); } catch(e){} }
 function guideHasMissions(){ return (state.missions||[]).length > 0; }
@@ -2172,7 +2217,7 @@ function guideSteps(){
   const first = !guideHasMissions();
   return [
     { k:'welcome', eye:tr('Добро пожаловать','Welcome'), t:tr('Здесь цели доводят до конца','Where goals get finished'), lead:tr('Покажу, как устроена ТЯГА. Займёт минуту — можно пропустить и вернуться позже.','Let me show you how TYAGA works. It takes a minute — you can skip and come back later.'), cta:tr('Покажи','Show me') },
-    { k:'mission', eye:tr('Шаг 1 · Миссия','Step 1 · Mission'), t:tr('Начни с миссии','Start with a mission'), lead:tr('Нажми «+» или «Запустить первую миссию» на главном экране и выбери тип:','Tap «+» or «Launch your first mission» on the home screen and pick a type:'), cta:tr('Дальше','Next') },
+    { k:'mission', eye:tr('Шаг 1 · Миссия','Step 1 · Mission'), t:tr('Начни с миссии','Start with a mission'), lead:tr('Открой «Главную» и нажми там «+» или «Запустить первую миссию». Выбери тип:','Open «Home» and tap «+» or «Launch your first mission» there. Pick a type:'), cta:tr('Дальше','Next') },
     { k:'promise', eye:tr('Шаг 2 · Обещание','Step 2 · Promise'), t:tr('Дай обещание','Make a promise'), lead:tr('Запиши короткое видео: что сделаешь и зачем. Позови свидетеля — с ним до финиша доходят чаще.','Record a short video: what you will do and why. Invite a witness — people with one reach the finish more often.'), cta:tr('Дальше','Next') },
     { k:'report', eye:tr('Шаг 3 · Отчёт','Step 3 · Report'), t:tr('Отчитывайся каждый день','Report every day'), lead:tr('Видео, фото или пара слов. Нажми кнопку на билете — попробуй:','A video, a photo or a few words. Tap the button on the ticket — try it:'), cta:tr('Дальше','Next') },
     { k:'radio', eye:tr('Шаг 4 · Радиообмен','Step 4 · Radio check-in'), t:tr('Выходи на связь','Check in daily'), lead:tr('Заходи каждый день и забирай награду. Чем длиннее серия, тем ценнее находки.','Drop by every day and claim your reward. The longer the streak, the better the finds.'), cta:tr('Дальше','Next') },
@@ -2183,20 +2228,25 @@ function guideSteps(){
 }
 function guideBody(k){
   const W = (b, sp) => `<div class="gd-w"><b>${b}</b><span>${sp}</span></div>`;
-  if (k==='welcome') return `<div class="gd-w" style="border-radius:28px;padding:22px"><b style="font-size:26px">${tr('Сделаю это','I will do it')}</b><span style="font-size:14px;color:#333">${tr('Миссия → обещание → отчёт каждый день → финиш. Наставники и друзья рядом весь путь.','Mission → promise → daily report → finish. Mentors and friends are with you all the way.')}</span><i class="gd-pill">${tr('1 минута','1 minute')}</i><i class="gd-pill">${tr('7 шагов','7 steps')}</i></div>`;
+  if (k==='welcome') return `<div class="gd-w" style="border-radius:28px;padding:22px"><b style="font-size:26px"><img src="${YASHIELD_URI}" alt="Я" style="width:.9em;height:.9em;filter:invert(1);vertical-align:-.08em;margin-right:8px">${tr('Сделаю это','I will do it')}</b><span style="font-size:14px;color:#333">${tr('Миссия → обещание → контроль → финиш. Наставники и друзья рядом весь путь.','Mission → promise → control → finish. Mentors and friends are with you all the way.')}</span><i class="gd-pill">${tr('1 минута','1 minute')}</i><i class="gd-pill">${tr('7 шагов','7 steps')}</i></div>`;
   if (k==='mission') return `<div class="gd-col">${W(tr('Привычка','Habit'), tr('Делаешь каждый день: 21, 66 или 90 дней','Every day for 21, 66 or 90 days'))}${W(tr('Результат','Result'), tr('Цель к конкретной дате','A goal by a specific date'))}${W(tr('Аскеза','Abstinence'), tr('Осознанный отказ от привычки или чего-либо','A conscious break from a habit or something else'))}</div>`;
   if (k==='promise') return `<div class="gd-vid"><div class="gd-cam"><em>0:24</em><i></i></div><div class="gd-wit"><div class="gd-av" style="background:#e7e7ea;color:#000">${tr('А','A')}</div><b>${tr('Свидетель','Witness')}</b>${tr('видит обещание и твои отчёты','sees your promise and your reports')}</div></div>`;
-  if (k==='report') return `<div class="gd-w" style="border-radius:26px;padding:18px"><div class="gd-mono"><span>№ 0042 · ${tr('ПРИВЫЧКА','HABIT')}</span><span>${tr('ДЕНЬ','DAY')} 12 / 66</span></div><b style="font-size:24px;margin-top:10px">${tr('Делаю это','Doing it')}</b><span style="font-weight:600;color:#000;font-size:14px">${tr('Спать до 23:00','Asleep by 11 pm')}</span><button class="gd-rep ${GUIDE.reported?'ok':''}" onclick="GUIDE.reported=!GUIDE.reported;guideRender()">${GUIDE.reported ? tr('Отчёт принят ✓','Report accepted ✓') : tr('Отчитаться по этой миссии','Report on this mission')}</button><span style="font-size:12px;color:#555">${tr('Пропустил день? Спасёт заморозка ❄ или «Второй шанс». Три дня без отчёта и ответа — миссия не засчитана.','Missed a day? A freeze ❄ or a «Second chance» saves it. Three days with no report and no answer — the mission does not count.')}</span></div>`;
-  if (k==='radio') return `<div class="gd-line" style="padding:18px"><div class="gd-stats"><div><b>14</b><small>${tr('Серия','Streak')}</small></div><div><b>❄ 1</b><small>${tr('Заморозки','Freezes')}</small></div><div><b>500</b><small>${tr('Л.С. сегодня','FH today')}</small></div></div><div class="gd-road"><i class="d">✓</i><i class="d">✓</i><i class="d">✓</i><i class="n">▲</i><i>5</i><i>6</i></div><div class="gd-fake">${tr('Выйти на связь','Check in')}</div></div>`;
+  if (k==='report') return `<div class="gd-w" style="border-radius:26px;padding:18px"><div class="gd-mono"><span>№ 0042 · ${tr('ПРИВЫЧКА','HABIT')}</span><span>${tr('ДЕНЬ','DAY')} 12 / 66</span></div><b style="font-size:24px;margin-top:10px"><img src="${YASHIELD_URI}" alt="Я" style="width:.9em;height:.9em;filter:invert(1);vertical-align:-.08em;margin-right:8px">${tr('Делаю это','Doing it')}</b><span style="font-weight:600;color:#000;font-size:14px">${tr('Спать до 23:00','Asleep by 11 pm')}</span><button class="gd-rep ${GUIDE.reported?'ok':''}" onclick="GUIDE.reported=!GUIDE.reported;guideRender()">${GUIDE.reported ? tr('Отчёт принят ✓','Report accepted ✓') : tr('Отчитаться по этой миссии','Report on this mission')}</button></div>`;
+  if (k==='radio') return `<div class="gd-line" style="padding:18px"><div class="gd-stats"><div><b>14</b><small>${tr('Серия','Streak')}</small></div><div><b>3</b><small>${tr('Подарки','Gifts')}</small></div><div><b>500</b><small>${tr('Л.С. сегодня','FH today')}</small></div></div><div class="gd-road"><i class="d">✓</i><i class="d">✓</i><i class="d">✓</i><i class="n">▲</i><i>5</i><i>6</i></div><div class="gd-fake">${tr('Выйти на связь','Check in')}</div></div>`;
   if (k==='mentors') {
     const men = [['Космонавт','Cosmonaut',tr('Николай Орлов. Держит слово и учит этому.','Nikolai Orlov. Keeps his word and teaches it.')],['Баба Зина','Baba Zina',tr('Тепло, с юмором и по-честному. Привычки и аскеза.','Warm, funny and honest. Habits and abstinence.')],['Леха P1x3l','Lyokha P1x3l',tr('Цель как квест: уровни, отчёты, босс в финале.','A goal as a quest: levels, reports, a boss at the end.')]];
     return `<div class="gd-col">${men.map(([ru,en,ab]) => { const h = (typeof MENTOR_HERO!=='undefined' && MENTOR_HERO[ru]) || null; const img = h && (h.ava || h.cut); return `<div class="gd-men"><div class="gd-av">${img ? `<img src="${img}" alt="">` : ru[0]}</div><div><b>${tr(ru,en)}</b><span>${ab}</span></div></div>`; }).join('')}</div>`;
   }
-  if (k==='points') return `<div class="gd-g2">${W(tr('Л.С.','FH'), tr('Твои очки за отчёты и Радиообмен. Тратишь на призы и ремонт серии.','Your points for reports and check-ins. Spend them on prizes and streak repair.'))}${W(tr('Репутация','Reputation'), tr('Видна всем. Растёт с честными отчётами и даёт уровень доверия.','Visible to all. Grows with honest reports and sets your trust level.'))}<div class="gd-line"><b>${tr('Иллюминатор','Illuminator')}</b> — ${tr('лента отчётов. Поддержи других — и тебя поддержат.','the report feed. Support others and they will support you.')}</div></div>`;
+  if (k==='points') return `<div class="gd-g2">${W(tr('Л.С.','FH'), tr('Твои очки за отчёты и Радиообмен. Тратишь на призы и усиления.','Your points for reports and check-ins. Spend them on prizes and boosts.'))}${W(tr('Репутация','Reputation'), tr('Видна всем. Растёт с честными отчётами и даёт уровень доверия.','Visible to all. Grows with honest reports and sets your trust level.'))}<div class="gd-line"><b>${tr('Иллюминатор','Illuminator')}</b> — ${tr('лента отчётов. Поддержи других — и тебя поддержат.','the report feed. Support others and they will support you.')}</div></div>`;
   return `<div class="gd-w" style="border-radius:28px;padding:22px"><b style="font-size:26px">${tr('Готов к старту','Ready for launch')}</b><span style="font-size:14px;color:#333">${guideHasMissions() ? tr('Твои миссии ждут на главном экране. Отчитайся сегодня — и забери награду в Радиообмене.','Your missions are waiting on the home screen. Report today and claim your check-in reward.') : tr('Первая миссия собирается за пару минут.','Your first mission takes a couple of minutes.')}</span></div>`;
 }
 function guideRender(){
   let el = document.getElementById('tyGuide'); if (!el) return;
+  el.classList.toggle('gd-intro', !!GUIDE.intro);
+  if (GUIDE.intro) {
+    el.innerHTML = `<div class="gd-pop"><div class="gd-eye">${tr('Гид ТЯГИ','TYAGA guide')}</div><h2>${tr('Это твой гид: как всё работает','This is your guide: how it all works')}</h2><p>${tr('Семь коротких шагов — меньше минуты. Его всегда можно открыть снова в «Ещё».','Seven short steps — under a minute. You can always reopen it in «More».')}</p><div class="gd-pop-btns"><button class="gd-back gd-pass" onclick="closeGuide()">${tr('Пропустить','Skip')}</button><button class="gd-next" onclick="GUIDE.intro=false;guideRender()">${tr('Продолжить','Continue')}</button></div></div>`;
+    return;
+  }
   const st = guideSteps(), i = Math.min(GUIDE.i, st.length-1), x = st[i], last = i === st.length-1;
   el.innerHTML = `<div class="gd-top"><div class="gd-logo">ТЯГА</div>${!last ? `<button class="gd-skip" onclick="guideGo(${st.length-1})">${tr('Пропустить','Skip')}</button>` : `<button class="gd-skip" onclick="closeGuide()">${tr('Закрыть','Close')}</button>`}</div>
     <div class="gd-dots">${st.map((_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')}</div>
@@ -2207,13 +2257,36 @@ function guideRender(){
 function guideGo(i){ GUIDE.i = i; GUIDE.reported = false; guideRender(); }
 function openGuide(){
   if (document.getElementById('tyGuide')) return;
-  GUIDE.i = 0; GUIDE.reported = false;
+  GUIDE.i = 0; GUIDE.reported = false; GUIDE.intro = true;
   const el = document.createElement('div'); el.id = 'tyGuide'; el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true');
   document.body.appendChild(el); guideRender();
 }
 function closeGuide(){ guideMarkSeen(); const el = document.getElementById('tyGuide'); if (el) el.remove(); }
 function finishGuide(){ const first = !guideHasMissions(); closeGuide(); if (first) startNewMission(); else if (state.screen !== 'home') go('home',{replace:true}); }
 function maybeShowGuide(){ if (guideAllowed() && !guideSeen() && typeof isOnboarded === 'function' && isOnboarded()) setTimeout(() => { if (!guideSeen()) openGuide(); }, 400); }
+// Snapshot of the user's last loaded data — shown instantly on the next launch while fresh data loads.
+function snapKey(){ return 'tyaga_snap_' + TG_ID; }
+function saveSnapshot(){
+  if (!TG_ID || !dbHydrated) return;
+  try {
+    const strip = (m) => { const o = Object.assign({}, m); delete o.trig; return o; };
+    localStorage.setItem(snapKey(), JSON.stringify({ at: Date.now(), profile: state.profile, missions: (state.missions||[]).map(strip), prizes: (state.prizes||[]).slice(0, 60), illumPosts: (state.illumPosts||[]).slice(0, 30), coach: state.coach }));
+  } catch(e){}
+}
+function loadSnapshot(){
+  if (!TG_ID) return false;
+  try {
+    const d = JSON.parse(localStorage.getItem(snapKey()) || 'null');
+    if (!d || !d.profile || Date.now() - d.at > 30 * 86400e3) return false;
+    Object.assign(state.profile, d.profile);
+    if (Array.isArray(d.missions)) state.missions = d.missions;
+    if (Array.isArray(d.prizes)) state.prizes = d.prizes;
+    if (Array.isArray(d.illumPosts) && d.illumPosts.length) state.illumPosts = d.illumPosts;
+    if (d.coach) state.coach = d.coach;
+    return true;
+  } catch(e){ return false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveSnapshot(); });
 function retryHydrate(){ if (dbHydrated || hydrating) return; hydrateTries = 0; hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
 function setHydrateUi(mode){
   try {
@@ -2224,7 +2297,7 @@ function setHydrateUi(mode){
     el.className = mode === 'failed' ? 'hb-failed' : '';
     el.innerHTML = mode === 'failed'
       ? `<span>${tr('Нет связи с сервером. Проверь интернет или VPN.','No connection to the server. Check your internet or VPN.')}</span><button onclick="retryHydrate()">${tr('Повторить','Retry')}</button>`
-      : `<i></i><span>${tr('Загружаю твои данные…','Loading your data…')}</span>`;
+      : `<i></i><span>${tr('Обновляю данные…','Refreshing…')}</span>`;
   } catch (e) {}
 }
 window.addEventListener('online', retryHydrate);
@@ -2314,11 +2387,12 @@ async function loadIlluminatorPosts(){
   if (!sb) return;
   try {
     const { data: posts } = await sb.from('illuminator_posts').select('*').eq('public', true).order('created_at', { ascending:false }).limit(30);
-    state.illumPosts = posts || [];
+    if (!posts) throw new Error('no posts');
+    state.illumPosts = posts;
     const { data: mySupports } = await sb.from('illuminator_supports').select('post_id').eq('user_id', TG_ID);
     (mySupports||[]).forEach(r => { state.illumSupported[r.post_id] = true; });
     safeRender();
-  } catch (e) { console.warn('loadIlluminatorPosts failed', e); }
+  } catch (e) { console.warn('loadIlluminatorPosts failed', e); state.illumLoaded = false; }
 }
 
 async function dbToggleSupport(postId, nowSupported){
@@ -2650,7 +2724,7 @@ function chatEsc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').rep
 function chatUsedFlag(v){ try { if (v) localStorage.setItem('tyaga_chat_used', '1'); return localStorage.getItem('tyaga_chat_used') === '1'; } catch (e) { return false; } }
 async function chatCall(action, body){
   const token = await authToken();
-  const r = await fetch(SUPABASE_URL + '/functions/v1/mentor-chat', {
+  const r = await apiFetch(SUPABASE_URL + '/functions/v1/mentor-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token },
     body: JSON.stringify(Object.assign({ action }, body || {})),
@@ -4962,11 +5036,9 @@ const SCREENS = {
         <div class="cell"><div class="val">${c.streak}</div><div class="lbl">${tr('Серия','Streak')}</div></div>
         <div class="cell"><div class="val">${c.longest}</div><div class="lbl">${tr('Рекорд','Best')}</div></div>
         <div class="cell"><div class="val">${lap}</div><div class="lbl">${tr('Круг','Lap')}</div></div>
-        <div class="cell"><div class="val">❄ ${c.freezes||0}</div><div class="lbl">${tr('Заморозки','Freezes')}</div></div>
+        <div class="cell"><div class="val">${(state.prizes||[]).length}</div><div class="lbl">${tr('Лут','Loot')}</div></div>
       </div>
-      <p class="hint" style="margin:-8px 0 16px;">${freezeCovers
-        ? tr('Вчера пропуск — заморозка спасёт серию, как только выйдешь на связь.','You missed yesterday — a freeze will save your streak as soon as you check in.')
-        : tr('Заморозка прикрывает один пропущенный день. +1 за каждые 7 дней подряд, максимум 2.','A freeze covers one missed day. +1 for every 7 days in a row, up to 2.')}</p>
+      ${freezeCovers ? `<p class="hint" style="margin:-8px 0 16px;">${tr('Вчера пропуск — заморозка спасёт серию, как только выйдешь на связь.','You missed yesterday — a freeze will save your streak as soon as you check in.')}</p>` : ''}
       ${(c.brokenStreak && c.brokenOn && c.brokenOn >= addDaysISO(-1)) ? `<div class="road-reveal" style="margin-bottom:16px">
         <div class="rr-label">${tr('Серия прервалась','Your streak broke')}</div>
         <div class="rr-found">${tr(`Было ${c.brokenStreak} дн. подряд. Вернуть серию можно в течение 48 часов.`, `You had ${c.brokenStreak} days in a row. You can restore it within 48 hours.`)}${(c.repairCost||300) > 300 ? `<br>${tr('Повторный ремонт серии — 1000 Л.С.','A repeat repair costs 1000 Flight Hours')}` : ''}</div>
@@ -7483,7 +7555,7 @@ const CANCEL_REASONS = [
 ];
 async function cancelCall(action, body){
   const token = await authToken();
-  const r = await fetch(SUPABASE_URL + '/functions/v1/mission-cancel', {
+  const r = await apiFetch(SUPABASE_URL + '/functions/v1/mission-cancel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token },
     body: JSON.stringify(Object.assign({ action }, body)),
@@ -9166,7 +9238,7 @@ function flushTrack(keepalive){
   if (!TG_AUTH.token) { trackTimer = setTimeout(flushTrack, 5000); return; }
   const batch = TRACK_Q.splice(0, 100);
   try {
-    fetch(SUPABASE_URL + '/rest/v1/rpc/track_events', {
+    apiFetch(SUPABASE_URL + '/rest/v1/rpc/track_events', {
       method: 'POST', keepalive: !!keepalive,
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + TG_AUTH.token },
       body: JSON.stringify({ p_events: batch }),
@@ -9390,7 +9462,7 @@ try {
   }
 } catch (e) {}
 if (IS_WEB && !TG_ID) { state.screen = 'webLogin'; state.history = []; render(); }
-else { render(); hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
+else { if (typeof isOnboarded === 'function' && isOnboarded()) loadSnapshot(); render(); hydrateFromDB().then(() => resumePaidCheckout()).catch(() => {}); }
 window.__tyagaBooted = true; try { var _nh = document.getElementById('tyagaNetHelp'); if (_nh) _nh.remove(); } catch (e) {}
 
 
