@@ -1224,6 +1224,27 @@
   .il-seg{margin:6px 0 14px;display:grid;grid-template-columns:1fr 1fr;height:40px;border-radius:20px;background:#111;padding:4px}
   .il-seg button{border:0;border-radius:16px;background:transparent;color:#8c8c8c;font:600 13px var(--font-body);cursor:pointer}
   .il-seg button.on{background:#fff;color:#000;font-weight:700}
+  .il-seg3{grid-template-columns:1fr 1fr 1fr}
+  .il-media .post-media-fallback{padding:52px 16px 22px;color:#8c8c8c;font-size:13px;line-height:1.4}
+  .il-who .pp-ava{display:flex;align-items:center;justify-content:center;font-style:normal;flex:none}
+  .il-chips{display:flex;gap:8px;overflow-x:auto;margin:-4px 0 14px;padding-bottom:2px;scrollbar-width:none}
+  .il-chips::-webkit-scrollbar{display:none}
+  .il-chip{flex:none;height:32px;padding:0 14px;border-radius:16px;border:1px solid #262626;background:transparent;color:#bdbdbd;font:600 12px var(--font-body);cursor:pointer}
+  .il-chip.on{background:#FF5A1F;border-color:#FF5A1F;color:#000}
+  .il-ava{overflow:hidden;padding:0}.il-ava img{width:100%;height:100%;object-fit:cover;display:block}
+  .il-who > div{flex:1;min-width:0}
+  .il-priv{font-style:normal;font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8c8c8c;border:1px solid #2a2a2a;border-radius:10px;padding:4px 8px;flex:none}
+  .il-prog{margin-top:10px;display:flex;align-items:center;gap:10px}
+  .il-prog b{flex:0 0 42%;height:4px;border-radius:2px;background:#222;overflow:hidden}.il-prog i{display:block;height:100%;background:#FF5A1F}
+  .il-prog span{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;color:#8c8c8c}
+  .il-empty{text-align:center;padding:36px 20px;border:1px dashed #262626;border-radius:22px;margin-bottom:14px}
+  .il-empty b{display:block;font-family:var(--font-display);font-style:italic;font-size:22px;text-transform:uppercase}
+  .il-empty p{color:#8c8c8c;font-size:14px;line-height:1.45;margin:8px 0 16px}
+  .il-skel .il-media{min-height:220px;animation:ilPulse 1.2s ease-in-out infinite}
+  .il-skel .il-body i{display:block;height:12px;border-radius:6px;background:#1a1a1a;margin:10px 0;animation:ilPulse 1.2s ease-in-out infinite}
+  .il-skel .il-body i.s{width:55%}
+  @keyframes ilPulse{50%{opacity:.45}}
+  .il-spin svg{animation:hbspin .9s linear infinite}
   .il-card{border-radius:22px;overflow:hidden;background:#0d0d0d;margin-bottom:14px}
   .il-media{position:relative;background:linear-gradient(170deg,#2b2b2b,#0a0a0a);min-height:120px}
   .il-media video,.il-media img{display:block;width:100%;max-height:520px;object-fit:cover;background:#000}
@@ -2383,17 +2404,34 @@ async function dbLogProgress(mission){
   } catch (e) { console.warn('dbLogProgress failed', e); }
 }
 
-async function loadIlluminatorPosts(){
-  if (!sb) return;
+// Иллюминатор v2 (2026-11-10): server feed (illum_feed RPC) — newest first, scopes all/following/mine,
+// mission-type filter, paging, author avatars. No demo posts: skeleton while loading, honest empty/error states.
+function illumState(){ return state.illum || (state.illum = { scope: 'all', type: null, posts: null, loading: false, error: false, more: true, at: 0 }); }
+async function loadIlluminatorPosts(opts){
+  opts = opts || {};
+  const I = illumState();
+  if (!sb || I.loading) return;
+  I.loading = true; I.error = false;
+  if (opts.reset) { I.posts = null; I.more = true; }
+  if (state.screen === 'illuminator') safeRender();
+  const before = (opts.more && I.posts && I.posts.length) ? I.posts[I.posts.length - 1].created_at : null;
   try {
-    const { data: posts } = await sb.from('illuminator_posts').select('*').eq('public', true).order('created_at', { ascending:false }).limit(30);
-    if (!posts) throw new Error('no posts');
-    state.illumPosts = posts;
-    const { data: mySupports } = await sb.from('illuminator_supports').select('post_id').eq('user_id', TG_ID);
-    (mySupports||[]).forEach(r => { state.illumSupported[r.post_id] = true; });
-    safeRender();
-  } catch (e) { console.warn('loadIlluminatorPosts failed', e); state.illumLoaded = false; }
+    const { data, error } = await sb.rpc('illum_feed', { p_scope: I.scope, p_type: I.type, p_before: before, p_limit: 40 });
+    if (error || !Array.isArray(data)) throw error || new Error('bad feed');
+    I.posts = before ? (I.posts || []).concat(data) : data;
+    I.more = data.length === 40; I.at = Date.now();
+    if (I.scope === 'all' && !I.type && !before) state.illumPosts = data;
+    try {
+      const { data: mySupports } = await sb.from('illuminator_supports').select('post_id').eq('user_id', TG_ID);
+      (mySupports||[]).forEach(r => { state.illumSupported[r.post_id] = true; });
+    } catch(e){}
+    state.illumLoaded = true;
+  } catch (e) { console.warn('illum_feed failed', e); I.error = true; state.illumLoaded = false; }
+  I.loading = false;
+  if (state.screen === 'illuminator') safeRender();
 }
+function illumSet(k, v){ const I = illumState(); if (I[k] === v) return; I[k] = v; loadIlluminatorPosts({ reset: true }); }
+function illumSkeleton(){ return [0,1].map(() => `<div class="il-card il-skel"><div class="il-media"></div><div class="il-body"><i></i><i></i><i class="s"></i></div></div>`).join(''); }
 
 async function dbToggleSupport(postId, nowSupported){
   if (!sb) return;
@@ -2403,8 +2441,6 @@ async function dbToggleSupport(postId, nowSupported){
     } else {
       await sb.from('illuminator_supports').delete().eq('post_id', postId).eq('user_id', TG_ID);
     }
-    const post = state.illumPosts.find(p=>p.id===postId);
-    if (post) await sb.from('illuminator_posts').update({ support_count: post.support_count }).eq('id', postId);
   } catch (e) { console.warn('dbToggleSupport failed', e); }
 }
 
@@ -3264,12 +3300,16 @@ function groupIlluminatorFeed(posts){
   });
   return order.map(key => {
     const g = groups[key];
-    return { key: g.key, rep: g.promise || g.posts[0], count: g.posts.length, posts: g.posts };
+    // newest post represents the mission in the feed (the feed is newest-first); the promise stays inside the thread
+    return { key: g.key, rep: g.posts[0], count: g.posts.length, posts: g.posts };
   });
 }
 function openFeedMissionThread(i){
   state.feedMissionThreadFor = i;
   go('feedMissionThread');
+  const g = (state.illumFeedGroups||[])[i], mid = g && g.rep && g.rep.mission_id;
+  if (mid && sb && !g.full) sb.from('illuminator_posts').select('*').eq('mission_id', mid).order('created_at', { ascending:false }).limit(200)
+    .then(({ data }) => { if (Array.isArray(data) && data.length) { g.posts = data; g.full = true; if (state.screen === 'feedMissionThread') safeRender(); } }, () => {});
 }
 
 // A small always-visible badge stating exactly what a post is: the mission's
@@ -3341,9 +3381,10 @@ function postCard(p, groupIndex, count){
     return `<div class="il-card">
       ${media ? `<div class="il-media">${media}<div class="il-tags"><b>${tag}</b>${dayTag ? `<span>${dayTag}</span>` : ''}</div></div>` : ''}
       <div class="il-body">
-        <div class="il-who" ${p.user_id ? `onclick="openUser(${Number(p.user_id)})"` : ''}><span class="pp-ava">${initial}</span><div><b>${v2Esc(p.author_name||tr('Пилот','Pilot'))}</b><span>${media ? '' : tag+' · '}${p.is_promise ? tr('обещание','promise') : tr('отчёт','report')} · ${v2Ago(p.created_at)}</span></div></div>
+        <div class="il-who" ${p.user_id ? `onclick="openUser(${Number(p.user_id)})"` : ''}>${isValidMediaUrl(p.author_avatar) ? `<span class="pp-ava il-ava"><img src="${p.author_avatar}" alt="" loading="lazy" onerror="this.remove()"></span>` : `<span class="pp-ava">${initial}</span>`}<div><b>${v2Esc(p.author_name||tr('Пилот','Pilot'))}</b><span>${media ? '' : tag+' · '}${p.is_promise ? tr('обещание','promise') : tr('отчёт','report')} · ${v2Ago(p.created_at)}</span></div>${p.public === false ? `<i class="il-priv">${tr('Только ты','Only you')}</i>` : ''}</div>
         ${p.mission_title ? `<div class="il-title">${v2Esc(p.mission_title)}</div>` : ''}
-        ${(p.caption || p.text_body) ? `<div class="il-text">${p.text_body || p.caption}</div>` : ''}
+        ${(!p.is_promise && p.report_day && p.report_total_days) ? `<div class="il-prog"><b><i style="width:${Math.min(100, Math.round(p.report_day / p.report_total_days * 100))}%"></i></b><span>${tr(`День ${p.report_day} из ${p.report_total_days}`, `Day ${p.report_day} of ${p.report_total_days}`)}</span></div>` : ''}
+        ${(p.caption || p.text_body) ? `<div class="il-text">${v2Esc(p.text_body || p.caption)}</div>` : ''}
         <div class="il-actions">
           <button class="il-sup ${supported?'on':''}" onclick="togglePostSupport('${p.id}')">${bolt}${supported ? tr('Поддержано','Supported') : tr('Поддержать','Support')}${p.support_count?` · ${p.support_count}`:''}</button>
           ${feedThreadLink(groupIndex, count)}
@@ -4888,7 +4929,7 @@ const SCREENS = {
         ? `<video src="${post.video_url}${String(post.video_url).includes('#')?'':'#t=0.1'}" controls playsinline preload="metadata" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;background:#000;"></video>`
         : post.photo_url
           ? `<img src="${post.photo_url}" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover;">`
-          : `<p class="lead" style="margin-top:6px;">${post.text_body || post.caption || ''}</p>`;
+          : `<p class="lead" style="margin-top:6px;">${v2Esc(post.text_body || post.caption || '')}</p>`;
       return `
         <div class="card" style="margin-bottom:10px;">
           <div class="mtop"><span class="mtitle">${label}</span><span class="mtype">${when}</span></div>
@@ -5248,24 +5289,33 @@ const SCREENS = {
 
   illuminator(){
     state.showNav = true;
-    const tab = state.illumTab || 'all';
-    if (tab==='following' && !state.followingLoaded) loadFollowing();
-    let groups = groupIlluminatorFeed(recommendedIlluminatorPosts());
-    if (tab==='following') groups = groups.filter(g=>g.rep && g.rep.user_id && (state.followingIds||[]).includes(Number(g.rep.user_id)));
+    const I = illumState();
+    if (!I.loading && (I.posts === null ? !I.error : Date.now() - I.at > 60000)) setTimeout(() => loadIlluminatorPosts(), 0);
+    const posts = I.posts || (I.scope === 'all' && !I.type ? state.illumPosts : []) || [];
+    const groups = groupIlluminatorFeed(posts).map(g => Object.assign(g, { count: Math.max(g.count, Number(g.rep && g.rep.thread_count) || 0) }));
     state.illumFeedGroups = groups;
+    const seg = (k, l) => `<button role="tab" aria-selected="${I.scope===k}" class="${I.scope===k?'on':''}" onclick="illumSet('scope','${k}')">${l}</button>`;
+    const chipT = (v, l) => `<button class="il-chip ${I.type===v?'on':''}" onclick="illumSet('type', ${v ? `'${v}'` : 'null'})">${l}</button>`;
+    const refresh = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>';
+    const empty = I.scope === 'following'
+      ? `<div class="il-empty"><b>${tr('Пока никого','Nobody yet')}</b><p>${tr('Подпишись на людей — их отчёты появятся здесь.','Follow people and their reports show up here.')}</p><button class="btn primary" onclick="openPeople()">${tr('Найти людей','Find people')}</button></div>`
+      : I.scope === 'mine'
+        ? `<div class="il-empty"><b>${tr('Здесь будут твои отчёты','Your reports will live here')}</b><p>${tr('Отчитайся по миссии — и отчёт появится в ленте.','Report on a mission and it appears here.')}</p></div>`
+        : `<div class="il-empty"><b>${tr('Тишина в эфире','Quiet on the air')}</b><p>${I.type ? tr('По этому типу миссий пока нет отчётов.','No reports for this mission type yet.') : tr('Стань первым: отчитайся по публичной миссии.','Be the first: report on a public mission.')}</p></div>`;
+    const mineNote = I.scope === 'mine' ? `<p class="hint" style="margin:-4px 0 12px">${tr('Отчёты по закрытым миссиям видишь только ты. Открыть миссию для всех можно в её карточке.','Reports on private missions are visible only to you. You can open a mission to everyone from its card.')}</p>` : '';
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
         <span class="v2-mono">${tr('Что делают другие','What others are doing')}</span>
-        <button class="v2-ic" aria-label="${tr('Найти людей','Find people')}" onclick="openPeople()">${V2_SEARCH}</button>
+        <div style="display:flex;gap:8px"><button class="v2-ic ${I.loading?'il-spin':''}" aria-label="${tr('Обновить','Refresh')}" onclick="loadIlluminatorPosts({reset:false})">${refresh}</button><button class="v2-ic" aria-label="${tr('Найти людей','Find people')}" onclick="openPeople()">${V2_SEARCH}</button></div>
       </div>
       <h1 class="v2-h1" style="font-size:44px">${tr('Иллюминатор','Viewport')}</h1>
-      <div class="il-seg" role="tablist">
-        <button role="tab" aria-selected="${tab==='all'}" class="${tab==='all'?'on':''}" onclick="state.illumTab='all'; render()">${tr('Для тебя','For you')}</button>
-        <button role="tab" aria-selected="${tab==='following'}" class="${tab==='following'?'on':''}" onclick="state.illumTab='following'; render()">${tr('Подписки','Following')}</button>
-      </div>
-      ${groups.length ? groups.map((g,i) => postCard(g.rep, i, g.count)).join('')
-        : tab==='following' ? `<div class="v2-ticket" style="text-align:center;padding:24px 18px"><div class="v2-goal" style="justify-content:center">${tr('Подпишись на людей — их миссии появятся здесь','Follow people — their missions show up here')}</div><div style="margin-top:14px">${v2Cta(tr('Найти людей','Find people'), 'openPeople()', 'dark')}</div></div>`
-        : `<p class="hint">${tr('Лента пока пустая.','The feed is empty for now.')}</p>`}
+      <div class="il-seg il-seg3" role="tablist">${seg('all', tr('Для тебя','For you'))}${seg('following', tr('Подписки','Following'))}${seg('mine', tr('Мои','Mine'))}</div>
+      <div class="il-chips">${chipT(null, tr('Все','All'))}${chipT('Привычка', tr('Привычки','Habits'))}${chipT('Результат', tr('Результаты','Results'))}${chipT('Аскеза', tr('Аскезы','Abstinence'))}</div>
+      ${mineNote}
+      ${I.error && !groups.length ? `<div class="il-empty"><b>${tr('Лента не загрузилась','The feed did not load')}</b><p>${tr('Проверь интернет и попробуй ещё раз.','Check your connection and try again.')}</p><button class="btn primary" onclick="loadIlluminatorPosts({reset:true})">${tr('Повторить','Retry')}</button></div>`
+        : groups.length ? groups.map((g,i) => postCard(g.rep, i, g.count)).join('')
+        : (I.posts === null || I.loading) ? illumSkeleton() : empty}
+      ${groups.length && I.more && I.posts ? `<button class="btn ghost block" style="margin:4px 0 90px" ${I.loading?'disabled':''} onclick="loadIlluminatorPosts({more:true})">${I.loading ? tr('Загружаю…','Loading…') : tr('Показать ещё','Show more')}</button>` : '<div style="height:80px"></div>'}
       <button class="il-fab" aria-label="${tr('Записать обещание','Record a promise')}" onclick="startNewMission()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg></button>
     `;
   },
@@ -9122,7 +9172,6 @@ function render(){
   try { document.documentElement.lang = state.lang; document.body.dataset.screen = state.screen; } catch(e){}
   document.getElementById('view').innerHTML = SCREENS[state.screen]();
   document.getElementById('navbar').innerHTML = navBar();
-  if(state.screen==='illuminator' && !state.illumLoaded){ state.illumLoaded = true; loadIlluminatorPosts(); }
 }
 // safeRender() — use this instead of render() from any code that can fire on its
 // own schedule (an async DB round-trip resolving, a setInterval tick, a setTimeout)
